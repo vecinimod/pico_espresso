@@ -4,7 +4,32 @@ from ssd1306 import SSD1306_I2C
 from max6675 import MAX6675
 from picozero import Button
 from PID import PID #https://github.com/gastmaier/micropython-simple-pid/blob/master/simple_pid/PID.pysa
+from microdot_asyncio import Microdot, Response, send_file
+from microdot_asyncio_websocket import with_websocket
+import uasyncio as asyncio
 
+#https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
+# boot.py -- run on boot-up
+import network
+
+# Replace the following with your WIFI Credentials
+SSID = "cdv"
+SSI_PASSWORD = "060609143"
+
+def do_connect():
+    import network
+    sta_if = network.WLAN(network.STA_IF)
+    if not sta_if.isconnected():
+        print('connecting to network...')
+        sta_if.active(True)
+        sta_if.connect(SSID, SSI_PASSWORD)
+        while not sta_if.isconnected():
+            pass
+    print('Connected! Network config:', sta_if.ifconfig())
+    
+print("Connecting to your wifi...")
+#https://www.donskytech.com/using-websocket-in-micropython-a-practical-example/
+#https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
 so = Pin(16, Pin.IN)
 sck = Pin(18, Pin.OUT)
 cs = Pin(17, Pin.OUT)
@@ -130,28 +155,61 @@ shotButton = Button(10)
 steam_temp = 137
 shot_temp = 102
 
-while(True): #todo move ssr pulse to each outcome here and encapsulate mypid and create reset method
-    if(shotButton.is_pressed and steamButton.is_pressed):
-        mypid.reset()
-        mypid.setpoint = steam_temp
 
-    elif(steamButton.is_pressed or shotButton.is_pressed):
-        mypid.reset()
-        mypid.setpoint = shot_temp
+do_connect()
 
-    elif(mypin.value()==1):        
-        mypin.low()
-        mypid.setpoint = 0
-        mypid.reset()
-        mypid.automode = False
-        myssr.reset()
+app = Microdot()
+Response.default_content_type = 'text/html'
+
+@app.route('/')
+async def index(request):
+    asyncio.sleep_ms(1)
+    return send_file('index.html')
+
+
+@app.route('/echo')
+@with_websocket
+async def echo(request, ws):
+    while True:
+        asyncio.sleep_ms(1)
+        data = ws.receive()
+        await ws.send(data)
+
+async def run_app():
+    await app.start_server(port=4000, debug=True)
+
+async def run_ssr():
+    print("yooo")
+    while(True): #todo move ssr pulse to each outcome here and encapsulate mypid and create reset method
+        if(shotButton.is_pressed and steamButton.is_pressed):
+            mypid.reset()
+            mypid.setpoint = steam_temp
+
+        elif(steamButton.is_pressed or shotButton.is_pressed):
+            mypid.reset()
+            mypid.setpoint = shot_temp
+
+        elif(mypin.value()==1):        
+            mypin.low()
+            mypid.setpoint = 0
+            mypid.reset()
+            mypid.automode = False
+            myssr.reset()
+            
+        if(time.ticks_ms() > shutdownTime):
+            mypin.low()
+            break
         
-    if(time.ticks_ms() > shutdownTime):
-        mypin.low()
-        break
+        elif(mypid._last_input is not None and mypid._last_input > 155): #exit if 104c or 220f reached
+            mypin.low()
+            break
+        
+        myssr.pulse()
+        asyncio.sleep_ms(1)
+
+async def main():
+    asyncio.create_task(run_ssr())
+    asyncio.create_task(run_app())
+    await asyncio.sleep_ms(10000)
     
-    elif(mypid._last_input is not None and mypid._last_input > 155): #exit if 104c or 220f reached
-        mypin.low()
-        break
-    
-    myssr.pulse()
+asyncio.run(main())
