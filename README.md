@@ -1,4 +1,4 @@
-# pico_espresso
+# pico espresso
 *A simple Raspberry Pi Pico w based espresso machine controller with support for duty cycled PID with SSR and OLED*
 
 Can be installed on any espresso machine for temperature control but currently installed on a Calphalon temp iq
