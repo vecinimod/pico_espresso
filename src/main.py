@@ -153,8 +153,6 @@ shotButton = Button(10)
 
 steam_temp = 137
 
-do_connect()
-
 app = Microdot()
 Response.default_content_type = 'text/html'
 
@@ -169,37 +167,14 @@ async def index(request):
 @with_websocket
 async def echo(request, ws):
     while True:
-        #await print("foofofofo")
         asyncio.sleep_ms(1)
         data = await ws.receive()
         print(data)
-#        await set_setpoint(int(data))
-#        data = await get_temp()
-        targetr = "Set Temp {targetr:.1f}"
-        targetr = targetr.format(targetr = int(data))
+        target = "Set Temp {target:.1f}"
         my_espresso.set_shot_temp(int(data))
+        target = target.format(target = my_espresso.user_shot_temp)
         asyncio.sleep_ms(1)
-        await ws.send(targetr)
-
-        
-
-
-
-#aloop = asyncio.get_event_loop()
-#async def main():
-#     asyncio.create_task(run_ssr())
-#     asyncio.create_task(run_app())
-#     await asyncio.sleep_ms(100000)
-    
-    
-#     task1 = aloop.create_task(run_ssr())
-#     task2 = aloop.create_task(start_web_server())
-    # Iterate over the tasks and wait for them to complete one by one
-    #for task in asyncio.as_completed([task1, task2]):
-    #    await task
-# task1 = aloop.create_task(run_ssr())
-# task2 = aloop.create_task(start_web_server())
-# aloop.run_forever()
+        await ws.send(target)
 
 class espresso:
     def __init__(self):
@@ -221,12 +196,13 @@ class espresso:
         self.user_shot_temp = temp
         
     async def start_web_server(self):
+        do_connect()
         print("Were")
         await app.start_server(port=5000, debug=True)
     
     async def run_ssr(self):        
 
-        while(True): #todo move ssr pulse to each outcome here and encapsulate mypid and create reset method
+        while(True): 
 
             if(shotButton.is_pressed and steamButton.is_pressed):
                 await print("dee dee")
