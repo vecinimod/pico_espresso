@@ -136,7 +136,6 @@ led.high()
 sample_period=1000 # how often to run PID output calculation
 windowStartTime = time.ticks_ms()
 shutdownTime = windowStartTime + 10 * 60 * 1000 # turn off after 10 minutes
-global mypid
 mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
 mypid.output_limits = (0, 100)
 
@@ -153,18 +152,6 @@ steamButton = Button(9)
 shotButton = Button(10)
 
 steam_temp = 137
-global gshot_temp
-gshot_temp = 0
-mypid.web=False
-async def set_setpoint(v):
-    global shot_temp
-#    print(v)
-    mypid.web = True
-    #mypid.setpoint=v
-#    print(mypid.setpoint)
-    gshot_temp = v
-    asyncio.sleep_ms(1)
-#    print(shot_temp)
 
 do_connect()
 
@@ -190,49 +177,15 @@ async def echo(request, ws):
 #        data = await get_temp()
         targetr = "Set Temp {targetr:.1f}"
         targetr = targetr.format(targetr = int(data))
-        shot_temp = int(data)
+        my_espresso.set_shot_temp(int(data))
         asyncio.sleep_ms(1)
         await ws.send(targetr)
 
         
-async def start_web_server():
-    print("Were")
-    await app.start_server(port=5000, debug=True)
-    #await sycio.sleep_ms(1)
-async def run_ssr():
-    global shot_temp
-    shot_temp = 102
 
-    while(True): #todo move ssr pulse to each outcome here and encapsulate mypid and create reset method
 
-        if(shotButton.is_pressed and steamButton.is_pressed):
-            await print("dee dee")
-            mypid.reset()
-            mypid.setpoint = steam_temp
 
-        elif(steamButton.is_pressed or shotButton.is_pressed):
-            mypid.reset()
-            mypid.setpoint = shot_temp
-
-        elif(mypin.value()==1):        
-            mypin.low()
-            mypid.setpoint = 0
-            mypid.reset()
-            mypid.automode = False
-            myssr.reset()
-            
-        if(time.ticks_ms() > shutdownTime):
-            mypin.low()
-            break
-        
-        elif(mypid._last_input is not None and mypid._last_input > 155): #exit if 104c or 220f reached
-            mypin.low()
-            break
-        
-        await myssr.pulse()
-        await asyncio.sleep_ms(1)
-
-aloop = asyncio.get_event_loop()
+#aloop = asyncio.get_event_loop()
 #async def main():
 #     asyncio.create_task(run_ssr())
 #     asyncio.create_task(run_app())
@@ -244,6 +197,66 @@ aloop = asyncio.get_event_loop()
     # Iterate over the tasks and wait for them to complete one by one
     #for task in asyncio.as_completed([task1, task2]):
     #    await task
-task1 = aloop.create_task(run_ssr())
-task2 = aloop.create_task(start_web_server())
-aloop.run_forever()
+# task1 = aloop.create_task(run_ssr())
+# task2 = aloop.create_task(start_web_server())
+# aloop.run_forever()
+
+class espresso:
+    def __init__(self):
+        self.setpoint = 0
+        self.input = 0
+        self.output = 0
+        self.default_shot_temp = 102
+        self.user_shot_temp = 0
+        self.default_steam_temp = 137
+        self.user_steam_temp = 0
+        self.loop = asyncio.get_event_loop()
+        
+    def call__async_main(self):
+        task1 = self.loop.create_task(self.run_ssr())
+        task2 = self.loop.create_task(self.start_web_server())
+        self.loop.run_forever()
+
+    def set_shot_temp(self, temp):
+        self.user_shot_temp = temp
+        
+    async def start_web_server(self):
+        print("Were")
+        await app.start_server(port=5000, debug=True)
+    
+    async def run_ssr(self):        
+
+        while(True): #todo move ssr pulse to each outcome here and encapsulate mypid and create reset method
+
+            if(shotButton.is_pressed and steamButton.is_pressed):
+                await print("dee dee")
+                mypid.reset()
+                mypid.setpoint = steam_temp
+
+            elif(steamButton.is_pressed or shotButton.is_pressed):
+                mypid.reset()
+                if(self.user_shot_temp>0):
+                    mypid.setpoint = self.user_shot_temp
+                else:
+                    mypid.setpoint = self.default_shot_temp                    
+
+            elif(mypin.value()==1):        
+                mypin.low()
+                mypid.setpoint = 0
+                mypid.reset()
+                mypid.automode = False
+                myssr.reset()
+                
+            if(time.ticks_ms() > shutdownTime):
+                mypin.low()
+                break
+            
+            elif(mypid._last_input is not None and mypid._last_input > 155): #exit if 104c or 220f reached
+                mypin.low()
+                break
+            
+            await myssr.pulse()
+            await asyncio.sleep_ms(1)
+
+my_espresso = espresso()
+my_espresso.call__async_main()
