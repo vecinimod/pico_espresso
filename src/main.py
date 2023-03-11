@@ -58,8 +58,7 @@ class ssrCtrl:
         self.oled=oled
         sample_period, mypid, mypin, oled
 
-    def calc_pulse(self, temp, now):
-        self.last_read = now
+    def calc_pulse(self, temp):
         self.output = self.mypid(temp)            
         print("input", temp, "setpoint", self.mypid.setpoint, "output", self.output)
         
@@ -75,9 +74,10 @@ class ssrCtrl:
     def pulse(self):
         now = time.ticks_ms()
         if(self.last_read==0 or now - self.last_read > self.WindowSize):        #new measurement and target pulse
+            self.last_read = now
             temp=get_temp()
-            self.calc_pulse(temp, now)    
-            
+            self.calc_pulse(temp)    
+            self.oled.update(self.mypid.setpoint, self.mypid._last_input, self.output)
             #print("input",pid._last_input,  "output % ", round(pid._last_output/100,2)*100, "ssr state ", self.PWMOutput, "pinstate ", self.high, "pulsewidth",self.pulsewidth)
             
         if(self.target_pulse >= 1 and self.output < 100): #calling for output
@@ -97,7 +97,13 @@ class ssrCtrl:
                 
         elif(self.output==100):
             self.mypin.high()
-                
+    
+    def reset(self):
+        if(self.target_pulse>0):
+            self.target_pulse = 0
+            self.output = 0
+            self.last_read = 0 
+        
 #show that we're on
 led = machine.Pin("LED", machine.Pin.OUT)
 led.high()
@@ -121,26 +127,31 @@ myssr = ssrCtrl(sample_period, mypid, mypin, oled)
 steamButton = Button(9)
 shotButton = Button(10)
 
-while(True):
+steam_temp = 137
+shot_temp = 102
+
+while(True): #todo move ssr pulse to each outcome here and encapsulate mypid and create reset method
     if(shotButton.is_pressed and steamButton.is_pressed):
         mypid.reset()
-        mypid.setpoint = 137
+        mypid.setpoint = steam_temp
+
     elif(steamButton.is_pressed or shotButton.is_pressed):
         mypid.reset()
-        mypid.setpoint = 102
-    else:        
+        mypid.setpoint = shot_temp
+
+    elif(mypin.value()==1):        
         mypin.low()
         mypid.setpoint = 0
         mypid.reset()
         mypid.automode = False
+        myssr.reset()
+        
     if(time.ticks_ms() > shutdownTime):
         mypin.low()
         break
+    
     elif(mypid._last_input is not None and mypid._last_input > 155): #exit if 104c or 220f reached
         mypin.low()
         break
+    
     myssr.pulse()
-
-
-
-
