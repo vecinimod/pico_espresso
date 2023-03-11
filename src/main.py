@@ -35,7 +35,7 @@ sck = Pin(18, Pin.OUT)
 cs = Pin(17, Pin.OUT)
  
 max = MAX6675(sck, cs , so)
-def get_temp():
+async def get_temp():
     data= max.read()
     return data
 
@@ -96,11 +96,11 @@ class ssrCtrl:
         self.fire_every_pulses = self.maxpulsespersec / self.target_pulse
         self.fire_every_ms = self.pulsewidth * self.fire_every_pulses
             
-    def pulse(self):
+    async def pulse(self):
         now = time.ticks_ms()
         if(self.last_read==0 or now - self.last_read > self.WindowSize):        #new measurement and target pulse
             self.last_read = now
-            temp=get_temp()
+            temp=await get_temp()
             self.calc_pulse(temp)    
             self.oled.update(self.mypid.setpoint, self.mypid._last_input, self.output)
             #print("input",pid._last_input,  "output % ", round(pid._last_output/100,2)*100, "ssr state ", self.PWMOutput, "pinstate ", self.high, "pulsewidth",self.pulsewidth)
@@ -136,7 +136,7 @@ led.high()
 sample_period=1000 # how often to run PID output calculation
 windowStartTime = time.ticks_ms()
 shutdownTime = windowStartTime + 10 * 60 * 1000 # turn off after 10 minutes
-
+global mypid
 mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
 mypid.output_limits = (0, 100)
 
@@ -153,8 +153,18 @@ steamButton = Button(9)
 shotButton = Button(10)
 
 steam_temp = 137
-shot_temp = 102
-
+global gshot_temp
+gshot_temp = 0
+mypid.web=False
+async def set_setpoint(v):
+    global shot_temp
+#    print(v)
+    mypid.web = True
+    #mypid.setpoint=v
+#    print(mypid.setpoint)
+    gshot_temp = v
+    asyncio.sleep_ms(1)
+#    print(shot_temp)
 
 do_connect()
 
@@ -167,21 +177,36 @@ async def index(request):
     return send_file('index.html')
 
 
+
 @app.route('/echo')
 @with_websocket
 async def echo(request, ws):
     while True:
+        #await print("foofofofo")
         asyncio.sleep_ms(1)
-        data = ws.receive()
-        await ws.send(data)
+        data = await ws.receive()
+        print(data)
+#        await set_setpoint(int(data))
+#        data = await get_temp()
+        targetr = "Set Temp {targetr:.1f}"
+        targetr = targetr.format(targetr = int(data))
+        shot_temp = int(data)
+        asyncio.sleep_ms(1)
+        await ws.send(targetr)
 
-async def run_app():
-    await app.start_server(port=4000, debug=True)
-
+        
+async def start_web_server():
+    print("Were")
+    await app.start_server(port=5000, debug=True)
+    #await sycio.sleep_ms(1)
 async def run_ssr():
-    print("yooo")
+    global shot_temp
+    shot_temp = 102
+
     while(True): #todo move ssr pulse to each outcome here and encapsulate mypid and create reset method
+
         if(shotButton.is_pressed and steamButton.is_pressed):
+            await print("dee dee")
             mypid.reset()
             mypid.setpoint = steam_temp
 
@@ -204,12 +229,21 @@ async def run_ssr():
             mypin.low()
             break
         
-        myssr.pulse()
-        asyncio.sleep_ms(1)
+        await myssr.pulse()
+        await asyncio.sleep_ms(1)
 
-async def main():
-    asyncio.create_task(run_ssr())
-    asyncio.create_task(run_app())
-    await asyncio.sleep_ms(10000)
+aloop = asyncio.get_event_loop()
+#async def main():
+#     asyncio.create_task(run_ssr())
+#     asyncio.create_task(run_app())
+#     await asyncio.sleep_ms(100000)
     
-asyncio.run(main())
+    
+#     task1 = aloop.create_task(run_ssr())
+#     task2 = aloop.create_task(start_web_server())
+    # Iterate over the tasks and wait for them to complete one by one
+    #for task in asyncio.as_completed([task1, task2]):
+    #    await task
+task1 = aloop.create_task(run_ssr())
+task2 = aloop.create_task(start_web_server())
+aloop.run_forever()
