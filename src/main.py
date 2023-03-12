@@ -65,7 +65,7 @@ class oled_ctl:
         else:
             duty = duty.format(duty = output)                
             
-        self.oled.text("VALENTINO Caffe", 0, 0)
+        self.oled.text("pico caffe", 0, 0)
         self.oled.text(target, 0, 16)
         self.oled.text(cur, 0, 32)
         self.oled.text(duty, 0, 48)
