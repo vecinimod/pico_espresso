@@ -11,7 +11,8 @@ Future support for:
 + flow meter (comes installed on temp iq)
 + load cell hx711
 
-<img width="416" alt="image" src="https://user-images.githubusercontent.com/7244561/224496973-89da0e37-e7f7-4ca5-bb81-930c0f0aa255.png">
+<img width="525" alt="image" src="https://user-images.githubusercontent.com/7244561/224531848-6d100060-4e1f-419d-9af9-2c0689ea6759.png">
+
 
 <img width="824" alt="image" src="https://user-images.githubusercontent.com/7244561/224531771-95f43956-c0ee-4b25-823f-93e1315bfa50.png">
 
