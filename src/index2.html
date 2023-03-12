@@ -13,6 +13,17 @@
     </form>
     <button id="pull_shot"> Pull Shot
     </button>
+    <form name="form_main">
+  <div>
+    <span id="hour">00</span>:<span id="minute">00</span>:<span id="second">00</span>:<span id="millisecond">000</span>
+  </div>
+
+  <br />
+
+  <button type="button" name="start">start</button>
+  <button type="button" name="pause">pause</button>
+  <button type="button" name="reset">reset</button>
+</form>
     <script>
       const log = (text, color) => {
         document.getElementById('log').innerHTML = `<span style="color: ${color}">${text}</span><br>`;
@@ -46,6 +57,8 @@
         espresso_data.push(this_data)
         lowest_time = 0        
         if(this_data["mode_change"]){
+            reset()
+            start()
             f_espresso_data = window_espresso_data(lowest_time, [this_data])
             old_espresso_data.push(espresso_data)
             espresso_data=[this_data]
@@ -119,7 +132,62 @@
        old_espresso_data=[]
       f_espresso_data = window_espresso_data(-1, espresso_data)
       console.log(f_espresso_data)
+      
+      let hour = 0;
+let minute = 0;
+let second = 0;
+let millisecond = 0;
+
+let cron;
+
+document.form_main.start.onclick = () => start();
+document.form_main.pause.onclick = () => pause();
+document.form_main.reset.onclick = () => reset();
+
+function start() {
+  pause();
+  cron = setInterval(() => { timer(); }, 10);
+}
+
+function pause() {
+  clearInterval(cron);
+}
+
+function reset() {
+  hour = 0;
+  minute = 0;
+  second = 0;
+  millisecond = 0;
+  document.getElementById('hour').innerText = '00';
+  document.getElementById('minute').innerText = '00';
+  document.getElementById('second').innerText = '00';
+  document.getElementById('millisecond').innerText = '000';
+}
+
+function timer() {
+  if ((millisecond += 10) == 1000) {
+    millisecond = 0;
+    second++;
+  }
+  if (second == 60) {
+    second = 0;
+    minute++;
+  }
+  if (minute == 60) {
+    minute = 0;
+    hour++;
+  }
+  document.getElementById('hour').innerText = returnData(hour);
+  document.getElementById('minute').innerText = returnData(minute);
+  document.getElementById('second').innerText = returnData(second);
+  document.getElementById('millisecond').innerText = returnData(millisecond);
+}
+
+function returnData(input) {
+  return input >= 10 ? input : `0${input}`
+  }
     </script>
       <div id="curve_chart" style="width: 900px; height: 500px"></div>
+
   </body>
 </html>
