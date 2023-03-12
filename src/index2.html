@@ -1,3 +1,7 @@
+// todo 
+//          # nvm - need to create explict request for each state
+//          # so need to rework main.py to have an explicit state
+//          # also need to add reset
 <!doctype html>
 <html>
   <head>
@@ -11,6 +15,8 @@
       <label for="text">Input Desired Shot Temp Incl Offset: </label>
       <input type="text" id="text" autofocus>
     </form>
+    <button id="pull_shot"> Pull Shot
+    </button>
     <script>
       const log = (text, color) => {
         document.getElementById('log').innerHTML = `<span style="color: ${color}">${text}</span><br>`;
@@ -30,13 +36,26 @@
         socket.send(textField.value);
         textField.value = '';
       };
+      const mode_socket = new WebSocket('ws://' + location.host + '/mode');
+
+      document.getElementById('pull_shot').onclick = ev => {
+        console.log("click")
+        ev.preventDefault();
+        mode_socket.send({"mode":"shot"});
+      };
       const data_socket = new WebSocket('ws://' + location.host + '/data');
       data_socket.addEventListener('message', ev => {
         //update_last google datapoint
-        espresso_data.push(JSON.parse(ev.data))
-        console.log(espresso_data)
-        lowest_time = 0
+        this_data = JSON.parse(ev.data)
+        espresso_data.push(this_data)
+        lowest_time = 0        
+        if(this_data["mode_change"]){
+            f_espresso_data = window_espresso_data(lowest_time, [this_data])
+            old_espresso_data.push(espresso_data)
+            espresso_data=[this_data]
+        }
         f_espresso_data = window_espresso_data(lowest_time, espresso_data)
+        
         console.log(ev)
       });
       data_socket.addEventListener('close', ev => {
@@ -47,18 +66,17 @@
     <script type="text/javascript">
       google.charts.load('current', {'packages':['corechart']});
       google.charts.setOnLoadCallback(drawChart);
-
-      function drawChart() {
+      
+      function drawChart(xmin=0, xmax=100) {
         var data = google.visualization.arrayToDataTable(f_espresso_data);
-        console.log("hi")
         var options = {
           title: 'pico espresso',
           //curveType: 'function',
           legend: { position: 'bottom' },
           hAxis: {
             viewWindow: {
-                min: 0,
-                max: 100
+                min: xmin,
+                max: xmax
             },
             ticks: [0, 32, 50, 75, 100] // display labels every 25
 },
@@ -75,6 +93,7 @@
 
         chart.draw(data, options);
       }
+
       setInterval(drawChart, 1000)
     </script>
     <script type="text/javascript">
@@ -85,8 +104,11 @@
             return a[key];
             });
         });
-        this_data.forEach(item => item[0] = (item[0] - start_time)/1000)
-        this_data = this_data.filter(item => item[0] > 0)
+        /*this_data.forEach(item => {
+            item[0] = (item[0] - start_time)/1000; 
+            console.log((item[0] - start_time)/1000);
+            })
+        this_data = this_data.filter(item => item[0] > 0)*/
         this_data.unshift(keys)
         return this_data
       }
@@ -98,6 +120,7 @@
               "weight": 0,
               "state": "sleep"
           }]
+       old_espresso_data=[]
       f_espresso_data = window_espresso_data(-1, espresso_data)
       console.log(f_espresso_data)
     </script>
