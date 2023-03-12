@@ -13,8 +13,8 @@ Future support for:
 
 <img width="525" alt="image" src="https://user-images.githubusercontent.com/7244561/224531848-6d100060-4e1f-419d-9af9-2c0689ea6759.png">
 
+<img width="775" alt="image" src="https://user-images.githubusercontent.com/7244561/224571747-9f3cc06b-6b6f-42d5-8c40-cf9a2bf14425.png">
 
-<img width="824" alt="image" src="https://user-images.githubusercontent.com/7244561/224531771-95f43956-c0ee-4b25-823f-93e1315bfa50.png">
 
 
 BOM ($35 to $67 depending on basic (ssr + pico + max6675 + tap) to complete (Add oled, load cell and dimmer)
