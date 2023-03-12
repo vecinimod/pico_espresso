@@ -11,9 +11,11 @@ Future support for:
 + flow meter (comes installed on temp iq)
 + load cell hx711
 
-<img width="416" alt="image" src="https://user-images.githubusercontent.com/7244561/224496973-89da0e37-e7f7-4ca5-bb81-930c0f0aa255.png">
+<img width="525" alt="image" src="https://user-images.githubusercontent.com/7244561/224531848-6d100060-4e1f-419d-9af9-2c0689ea6759.png">
 
-![image](https://user-images.githubusercontent.com/7244561/224459490-87351a9d-1f44-41a7-92be-3cdb52296e52.png)
+
+<img width="824" alt="image" src="https://user-images.githubusercontent.com/7244561/224531771-95f43956-c0ee-4b25-823f-93e1315bfa50.png">
+
 
 BOM ($35 to $67 depending on basic (ssr + pico + max6675 + tap) to complete (Add oled, load cell and dimmer)
 + [OLED](https://www.amazon.com/gp/product/B072Q2X2LL/ref=ppx_yo_dt_b_asin_title_o00_s01?ie=UTF8&psc=1) $7

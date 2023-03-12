@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+  <head>
+    <title>pico espresso</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+  </head>
+  <body>
+    <div id="log"></div>
+    <br>
+    <form id="form">
+      <label for="text">Input Desired Shot Temp Incl Offset: </label>
+      <input type="text" id="text" autofocus>
+    </form>
+    <script>
+      const log = (text, color) => {
+        document.getElementById('log').innerHTML = `<span style="color: ${color}">${text}</span><br>`;
+      };
+
+      const socket = new WebSocket('ws://' + location.host + '/echo');
+      socket.addEventListener('message', ev => {
+        log('<<< ' + ev.data, 'blue');
+      });
+      socket.addEventListener('close', ev => {
+        log('<<< closed');
+      });
+      document.getElementById('form').onsubmit = ev => {
+        ev.preventDefault();
+        const textField = document.getElementById('text');
+        log('>>> ' + textField.value, 'red');
+        socket.send(textField.value);
+        textField.value = '';
+      };
+      const data_socket = new WebSocket('ws://' + location.host + '/data');
+      data_socket.addEventListener('message', ev => {
+        //update_last google datapoint
+        espresso_data.push(JSON.parse(ev.data))
+        console.log(espresso_data)
+        lowest_time = 0
+        f_espresso_data = window_espresso_data(lowest_time, espresso_data)
+        console.log(ev)
+      });
+      data_socket.addEventListener('close', ev => {
+        console.log('data socket closed');
+      });
+    </script>
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+      google.charts.load('current', {'packages':['corechart']});
+      google.charts.setOnLoadCallback(drawChart);
+
+      function drawChart() {
+        var data = google.visualization.arrayToDataTable(f_espresso_data);
+        console.log("hi")
+        var options = {
+          title: 'pico espresso',
+          //curveType: 'function',
+          legend: { position: 'bottom' },
+          hAxis: {
+            viewWindow: {
+                min: 0,
+                max: 100
+            },
+            ticks: [0, 32, 50, 75, 100] // display labels every 25
+},
+          vAxis: {
+            viewWindow: {
+                min: 0,
+                max: 330
+            },
+            ticks: [0,32,100] // display labels every 25
+}
+        };
+
+        var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
+
+        chart.draw(data, options);
+      }
+      setInterval(drawChart, 1000)
+    </script>
+    <script type="text/javascript">
+        window_espresso_data = function(start_time, esp_data){
+        keys = ['time', 'temperature', 'output', 'setpoint', 'weight']
+        var this_data = esp_data.map(function(a) {
+            return keys.map(function(key) {
+            return a[key];
+            });
+        });
+        this_data.forEach(item => item[0] = (item[0] - start_time)/1000)
+        this_data = this_data.filter(item => item[0] > 0)
+        this_data.unshift(keys)
+        return this_data
+      }
+      espresso_data = [{
+              "time": 0,
+              "temperature": 0,
+              "output": 0,
+              "setpoint": 0,
+              "weight": 0,
+              "state": "sleep"
+          }]
+      f_espresso_data = window_espresso_data(-1, espresso_data)
+      console.log(f_espresso_data)
+    </script>
+      <div id="curve_chart" style="width: 900px; height: 500px"></div>
+  </body>
+</html>

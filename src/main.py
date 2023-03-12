@@ -1,4 +1,5 @@
 import time
+from json import dumps as jdump
 from machine import Pin, Timer, I2C
 from ssd1306 import SSD1306_I2C
 from max6675 import MAX6675
@@ -64,7 +65,7 @@ class oled_ctl:
         else:
             duty = duty.format(duty = output)                
             
-        self.oled.text("pico espresso", 0, 0)
+        self.oled.text("pico caffe", 0, 0)
         self.oled.text(target, 0, 16)
         self.oled.text(cur, 0, 32)
         self.oled.text(duty, 0, 48)
@@ -98,7 +99,9 @@ class ssrCtrl:
             
     async def pulse(self):
         now = time.ticks_ms()
+
         if(self.last_read==0 or now - self.last_read > self.WindowSize):        #new measurement and target pulse
+            self.mypin.low()
             self.last_read = now
             temp=await get_temp()
             self.calc_pulse(temp)    
@@ -159,7 +162,7 @@ Response.default_content_type = 'text/html'
 @app.route('/')
 async def index(request):
     asyncio.sleep_ms(1)
-    return send_file('index.html')
+    return send_file('index2.html')
 
 
 
@@ -176,16 +179,29 @@ async def echo(request, ws):
         asyncio.sleep_ms(1)
         await ws.send(target)
 
+@app.route('/data')
+@with_websocket
+async def data(request, ws):    
+    while True:
+        await asyncio.sleep_ms(1000)
+        temp = await get_temp()
+        data_str = jdump({"time":my_espresso.current_time,"temperature":temp,
+                          "output":myssr.output, "setpoint":mypid.setpoint,
+                          "weight":0, "state":"brew" })
+        await ws.send(data_str)
+
+
 class espresso:
     def __init__(self):
         self.setpoint = 0
         self.input = 0
         self.output = 0
-        self.default_shot_temp = 102
+        self.default_shot_temp = 40
         self.user_shot_temp = 0
         self.default_steam_temp = 137
         self.user_steam_temp = 0
         self.loop = asyncio.get_event_loop()
+        self.start_time = time.ticks_ms()
         
     def call__async_main(self):
         task1 = self.loop.create_task(self.run_ssr())
@@ -202,8 +218,10 @@ class espresso:
     
     async def run_ssr(self):        
 
-        while(True): 
-
+        while(True):
+            self.current_time = time.ticks_ms()
+            self.elapsed_time = time.ticks_diff(self.start_time, self.current_time)
+            
             if(shotButton.is_pressed and steamButton.is_pressed):
                 await print("dee dee")
                 mypid.reset()
@@ -216,7 +234,7 @@ class espresso:
                 else:
                     mypid.setpoint = self.default_shot_temp                    
 
-            elif(mypin.value()==1):        
+            elif(mypin.value()==1 or mypid.setpoint>0):        
                 mypin.low()
                 mypid.setpoint = 0
                 mypid.reset()
@@ -236,3 +254,4 @@ class espresso:
 
 my_espresso = espresso()
 my_espresso.call__async_main()
+
