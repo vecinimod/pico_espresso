@@ -12,10 +12,12 @@ import uasyncio as asyncio
 #https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
 # boot.py -- run on boot-up
 import network
+from secrets import secrets
 
 # Replace the following with your WIFI Credentials
-SSID = ""
-SSI_PASSWORD = ""
+secrets = secrets()
+SSID = secrets.SSID
+SSI_PASSWORD = secrets.SSI_PASSWORD
 
 def do_connect():
     import network
@@ -27,10 +29,7 @@ def do_connect():
         while not sta_if.isconnected():
             pass
     print('Connected! Network config:', sta_if.ifconfig())
-    
-print("Connecting to your wifi...")
-#https://www.donskytech.com/using-websocket-in-micropython-a-practical-example/
-#https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
+
 so = Pin(16, Pin.IN)
 sck = Pin(18, Pin.OUT)
 cs = Pin(17, Pin.OUT)
@@ -65,7 +64,7 @@ class oled_ctl:
         else:
             duty = duty.format(duty = output)                
             
-        self.oled.text("pico caffe", 0, 0)
+        self.oled.text("VALENTINO Caffe", 0, 0)
         self.oled.text(target, 0, 16)
         self.oled.text(cur, 0, 32)
         self.oled.text(duty, 0, 48)
@@ -82,7 +81,7 @@ class ssrCtrl:
         self.mypid = mypid
         self.mypin = mypin
         self.oled=oled
-        sample_period, mypid, mypin, oled
+        
 
     def calc_pulse(self, temp):
         self.output = self.mypid(temp)            
@@ -131,31 +130,10 @@ class ssrCtrl:
             self.target_pulse = 0
             self.output = 0
             self.last_read = 0 
-        
-#show that we're on
-led = machine.Pin("LED", machine.Pin.OUT)
-led.high()
 
-sample_period=1000 # how often to run PID output calculation
-windowStartTime = time.ticks_ms()
-shutdownTime = windowStartTime + 10 * 60 * 1000 # turn off after 10 minutes
-mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
-mypid.output_limits = (0, 100)
-
-
-oled = oled_ctl(14, 15)
-
-#ssr output pin
-mypin = machine.Pin(2, Pin.OUT)
-
-myssr = ssrCtrl(sample_period, mypid, mypin, oled)
-
-
-steamButton = Button(9)
-shotButton = Button(10)
-
-steam_temp = 137
-
+#define app
+#https://www.donskytech.com/using-websocket-in-micropython-a-practical-example/
+#https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
 app = Microdot()
 Response.default_content_type = 'text/html'
 
@@ -183,16 +161,17 @@ async def echo(request, ws):
 @with_websocket
 async def data(request, ws):    
     while True:
-        await asyncio.sleep_ms(1000)
+        await asyncio.sleep_ms(my_esspresso.sample_period)
         temp = await get_temp()
         data_str = jdump({"time":my_espresso.current_time,"temperature":temp,
-                          "output":myssr.output, "setpoint":mypid.setpoint,
+                          "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
                           "weight":0, "state":"brew" })
         await ws.send(data_str)
 
 
+# a class to manage the loop, run both control + sensor and app tasks
 class espresso:
-    def __init__(self):
+    def __init__(self, oled, sample_period=1000, ssr_pin=2, steam_btn_pin=9, shot_btn_pin=10):
         self.setpoint = 0
         self.input = 0
         self.output = 0
@@ -200,6 +179,15 @@ class espresso:
         self.user_shot_temp = 0
         self.default_steam_temp = 137
         self.user_steam_temp = 0
+
+        self.sample_period = sample_period
+        
+        self.steamButton = Button(steam_btn_pin)
+        self.shotButton = Button(shot_btn_pin)
+        
+        self.mypin = machine.Pin(ssr_pin, Pin.OUT)
+        self.oled = oled
+        
         self.loop = asyncio.get_event_loop()
         self.start_time = time.ticks_ms()
         
@@ -213,45 +201,61 @@ class espresso:
         
     async def start_web_server(self):
         do_connect()
-        print("Were")
         await app.start_server(port=5000, debug=True)
     
     async def run_ssr(self):        
-
+        self.mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
+        self.mypid.output_limits = (0, 100)
+        
+        self.myssr = ssrCtrl(self.sample_period, self.mypid, self.mypin, self.oled)
+        
         while(True):
             self.current_time = time.ticks_ms()
             self.elapsed_time = time.ticks_diff(self.start_time, self.current_time)
             
-            if(shotButton.is_pressed and steamButton.is_pressed):
-                await print("dee dee")
-                mypid.reset()
-                mypid.setpoint = steam_temp
-
-            elif(steamButton.is_pressed or shotButton.is_pressed):
-                mypid.reset()
-                if(self.user_shot_temp>0):
-                    mypid.setpoint = self.user_shot_temp
+            if(self.shotButton.is_pressed and self.steamButton.is_pressed):
+                self.mypid.reset()
+                if(self.user_steam_temp>0):
+                    self.mypid.setpoint = self.user_steam_temp
                 else:
-                    mypid.setpoint = self.default_shot_temp                    
+                    self.mypid.setpoint = self.default_steam_temp 
 
-            elif(mypin.value()==1 or mypid.setpoint>0):        
-                mypin.low()
-                mypid.setpoint = 0
-                mypid.reset()
-                mypid.automode = False
-                myssr.reset()
+            elif(self.steamButton.is_pressed or self.shotButton.is_pressed):
+                self.mypid.reset()
+                if(self.user_shot_temp>0):
+                    self.mypid.setpoint = self.user_shot_temp
+                else:
+                    self.mypid.setpoint = self.default_shot_temp                    
+
+            elif(self.mypin.value()==1 or self.mypid.setpoint>0):        
+                self.mypin.low()
+                self.mypid.setpoint = 0
+                self.mypid.reset()
+                self.mypid.automode = False
+                self. myssr.reset()
                 
             if(time.ticks_ms() > shutdownTime):
-                mypin.low()
+                self.mypin.low()
                 break
             
-            elif(mypid._last_input is not None and mypid._last_input > 155): #exit if 104c or 220f reached
-                mypin.low()
+            elif(self.mypid._last_input is not None and self.mypid._last_input > 155): #exit if 104c or 220f reached
+                self.mypin.low()
                 break
             
-            await myssr.pulse()
+            await self.myssr.pulse()
             await asyncio.sleep_ms(1)
 
-my_espresso = espresso()
+#show that we're on
+led = machine.Pin("LED", machine.Pin.OUT)
+led.high()
+
+sample_period=1000 # how often to run PID output calculation
+windowStartTime = time.ticks_ms()
+shutdownTime = windowStartTime + 10 * 60 * 1000 # turn off after 10 minutes
+
+#setup oled
+myoled = oled_ctl(14, 15)
+
+my_espresso = espresso(myoled)
 my_espresso.call__async_main()
 
