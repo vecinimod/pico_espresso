@@ -234,7 +234,7 @@ class espresso:
                 else:
                     mypid.setpoint = self.default_shot_temp                    
 
-            elif(mypin.value()==1):        
+            elif(mypin.value()==1 or mypid.setpoint>0):        
                 mypin.low()
                 mypid.setpoint = 0
                 mypid.reset()
