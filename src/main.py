@@ -64,7 +64,7 @@ class oled_ctl:
         else:
             duty = duty.format(duty = output)                
             
-        self.oled.text("VALENTINO Caffe", 0, 0)
+        self.oled.text("Pico Caffe", 0, 0)
         self.oled.text(target, 0, 16)
         self.oled.text(cur, 0, 32)
         self.oled.text(duty, 0, 48)
@@ -215,7 +215,6 @@ class espresso:
         self.loop.run_forever()
 
     def set_shot_temp(self, temp):
-        print("woo")
         self.user_shot_temp = temp
         
     async def start_web_server(self):
@@ -224,7 +223,6 @@ class espresso:
         
     def ui_mode_change_request(self):
         self.ui_mode_change_requested = True
-        print("hi")
         
     def sense_mode(self):
         if(self.shotButton.is_pressed and self.steamButton.is_pressed):
