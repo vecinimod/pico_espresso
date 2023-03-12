@@ -156,25 +156,37 @@ async def echo(request, ws):
         target = target.format(target = my_espresso.user_shot_temp)
         asyncio.sleep_ms(1)
         await ws.send(target)
-
+        
+@app.route('/mode')
+@with_websocket
+async def echo(request, ws):
+    while True:
+        asyncio.sleep_ms(100)
+        data = await ws.receive()
+        print(data)
+        asyncio.sleep_ms(1)
+        if(my_espresso.mode == "shot"): #check machine mode has to be in shot mode
+            my_espresso.ui_mode_change_request()
+        else:
+            print("Error gui asked for shot mode when not physically in shot mode, turn dial")
+        
 @app.route('/data')
 @with_websocket
 async def data(request, ws):    
     while True:
-        await asyncio.sleep_ms(my_esspresso.sample_period)
+        await asyncio.sleep_ms(my_espresso.sample_period)
         temp = await get_temp()
-        data_str = jdump({"time":my_espresso.current_time,"temperature":temp,
+        data_str = jdump({"time":my_espresso.mode_elapsed_time/1000,"temperature":temp,
                           "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
-                          "weight":0, "state":"brew" })
+                          "weight":0, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change})
+        my_espresso.flag_ui_mode_change = False
         await ws.send(data_str)
 
 
 # a class to manage the loop, run both control + sensor and app tasks
 class espresso:
     def __init__(self, oled, sample_period=1000, ssr_pin=2, steam_btn_pin=9, shot_btn_pin=10):
-        self.setpoint = 0
-        self.input = 0
-        self.output = 0
+
         self.default_shot_temp = 40
         self.user_shot_temp = 0
         self.default_steam_temp = 137
@@ -188,6 +200,12 @@ class espresso:
         self.mypin = machine.Pin(ssr_pin, Pin.OUT)
         self.oled = oled
         
+        self.last_mode = None
+        self.mode = None
+        self.mode_change = False
+        self.flag_ui_mode_change = False
+        self.ui_mode_change_requested = False
+        
         self.loop = asyncio.get_event_loop()
         self.start_time = time.ticks_ms()
         
@@ -197,42 +215,73 @@ class espresso:
         self.loop.run_forever()
 
     def set_shot_temp(self, temp):
+        print("woo")
         self.user_shot_temp = temp
         
     async def start_web_server(self):
         do_connect()
         await app.start_server(port=5000, debug=True)
-    
-    async def run_ssr(self):        
-        self.mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
-        self.mypid.output_limits = (0, 100)
         
-        self.myssr = ssrCtrl(self.sample_period, self.mypid, self.mypin, self.oled)
+    def ui_mode_change_request(self):
+        self.ui_mode_change_requested = True
+        print("hi")
         
-        while(True):
-            self.current_time = time.ticks_ms()
-            self.elapsed_time = time.ticks_diff(self.start_time, self.current_time)
+    def sense_mode(self):
+        if(self.shotButton.is_pressed and self.steamButton.is_pressed):
+            mode = "steam"
+        elif(self.shotButton.is_pressed or self.steamButton.is_pressed):
+            mode = "shot"
+        elif(not self.shotButton.is_pressed and not self.steamButton.is_pressed):
+            mode = "sleep"
+        else:
+            mode = "sleep"
+        
+        if(self.last_mode is not None and mode != self.last_mode) or self.ui_mode_change_requested:
+            self.mode_change=True
+            self.mode_start_time = time.ticks_ms()            
+        else:
+            self.mode_change = False
             
-            if(self.shotButton.is_pressed and self.steamButton.is_pressed):
+        self.last_mode = mode
+        self.mode = mode
+
+    def run_mode(self):
+        if(self.mode_change):
+            self.flag_ui_mode_change = True
+            self.ui_mode_change_requested = False
+            if(self.mode=="steam"):
                 self.mypid.reset()
                 if(self.user_steam_temp>0):
                     self.mypid.setpoint = self.user_steam_temp
                 else:
-                    self.mypid.setpoint = self.default_steam_temp 
-
-            elif(self.steamButton.is_pressed or self.shotButton.is_pressed):
+                    self.mypid.setpoint = self.default_steam_temp
+            elif(self.mode=="shot"):
                 self.mypid.reset()
                 if(self.user_shot_temp>0):
                     self.mypid.setpoint = self.user_shot_temp
                 else:
-                    self.mypid.setpoint = self.default_shot_temp                    
-
-            elif(self.mypin.value()==1 or self.mypid.setpoint>0):        
+                    self.mypid.setpoint = self.default_shot_temp
+            elif(self.mode=="sleep"):
                 self.mypin.low()
                 self.mypid.setpoint = 0
                 self.mypid.reset()
                 self.mypid.automode = False
                 self. myssr.reset()
+                
+        self.mode_elapsed_time = time.ticks_diff(time.ticks_ms(),self.mode_start_time)
+                
+    async def run_ssr(self):        
+        self.mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
+        self.mypid.output_limits = (0, 100)
+        
+        self.myssr = ssrCtrl(self.sample_period, self.mypid, self.mypin, self.oled)
+        self.mode_start_time = time.ticks_ms()
+        
+        while(True):
+            self.current_time = time.ticks_ms()
+            self.elapsed_time = time.ticks_diff(self.start_time, self.current_time)
+            self.sense_mode()
+            self.run_mode()
                 
             if(time.ticks_ms() > shutdownTime):
                 self.mypin.low()
