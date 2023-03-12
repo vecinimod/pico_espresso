@@ -13,8 +13,8 @@ import uasyncio as asyncio
 import network
 
 # Replace the following with your WIFI Credentials
-SSID = "cdv"
-SSI_PASSWORD = "060609143"
+SSID = ""
+SSI_PASSWORD = ""
 
 def do_connect():
     import network
