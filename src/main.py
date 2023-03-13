@@ -13,7 +13,20 @@ import uasyncio as asyncio
 # boot.py -- run on boot-up
 import network
 from secrets import secrets
+   
+from hx711_pio import HX711
+pin_OUT = Pin(6, Pin.IN, pull=Pin.PULL_DOWN)
+pin_SCK = Pin(5, Pin.OUT)
 
+hx711 = HX711(pin_SCK, pin_OUT)
+#scale = 300
+hx711.tare(3)
+hx711.set_time_constant(.95)
+
+def callhx2():
+    value = hx711.get_value()
+    return(value)
+    
 # Replace the following with your WIFI Credentials
 secrets = secrets()
 SSID = secrets.SSID
@@ -81,6 +94,7 @@ class ssrCtrl:
         self.mypid = mypid
         self.mypin = mypin
         self.oled=oled
+        self.weight = 0
         
 
     def calc_pulse(self, temp):
@@ -163,8 +177,8 @@ async def echo(request, ws):
     while True:
         asyncio.sleep_ms(100)
         data = await ws.receive()
-        print(data)
         asyncio.sleep_ms(1)
+        hx711.tare(3)
         if(my_espresso.mode == "shot"): #check machine mode has to be in shot mode
             my_espresso.ui_mode_change_request()
         else:
@@ -176,9 +190,10 @@ async def data(request, ws):
     while True:
         await asyncio.sleep_ms(my_espresso.sample_period)
         temp = await get_temp()
+        weight = callhx2()
         data_str = jdump({"time":my_espresso.mode_elapsed_time/1000,"temperature":temp,
                           "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
-                          "weight":0, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change})
+                          "weight":weight/-300, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change})
         my_espresso.flag_ui_mode_change = False
         await ws.send(data_str)
 
@@ -187,7 +202,7 @@ async def data(request, ws):
 class espresso:
     def __init__(self, oled, sample_period=1000, ssr_pin=2, steam_btn_pin=9, shot_btn_pin=10):
 
-        self.default_shot_temp = 40
+        self.default_shot_temp = 100
         self.user_shot_temp = 0
         self.default_steam_temp = 137
         self.user_steam_temp = 0
@@ -210,7 +225,7 @@ class espresso:
         self.start_time = time.ticks_ms()
         
     def call__async_main(self):
-        task1 = self.loop.create_task(self.run_ssr())
+        task1 = self.loop.create_task(self.run_ssr(self.loop))
         task2 = self.loop.create_task(self.start_web_server())
         self.loop.run_forever()
 
@@ -268,7 +283,7 @@ class espresso:
                 
         self.mode_elapsed_time = time.ticks_diff(time.ticks_ms(),self.mode_start_time)
                 
-    async def run_ssr(self):        
+    async def run_ssr(self, parent_loop):        
         self.mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
         self.mypid.output_limits = (0, 100)
         
@@ -283,10 +298,12 @@ class espresso:
                 
             if(time.ticks_ms() > shutdownTime):
                 self.mypin.low()
+                parent_loop.stop()
                 break
             
             elif(self.mypid._last_input is not None and self.mypid._last_input > 155): #exit if 104c or 220f reached
                 self.mypin.low()
+                parent_loop.stop()
                 break
             
             await self.myssr.pulse()
