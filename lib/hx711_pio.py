@@ -74,9 +74,9 @@ class HX711:
         self.sm.put(250_000)     # set wait time to 500ms
         self.sm.put(self.GAIN + 24 - 1)     # set pulse count 25-27, start
         result = self.sm.get() >> self.GAIN # get the result & discard GAIN bits
-        #print(hex(result))
+        print(hex(result))
         self.sm.active(0)  # stop the state machine
-        if result == 0x7fffffff:
+        if (result == 0x7fffffff or result==0x0):
             raise OSError("Sensor does not respond")
 
         # check sign
