@@ -5,7 +5,7 @@
 + duty cycled PID with SSR
 + integrated shot scale with auto tareing and data recording in web app 
 + OLED display for current temperature, setpoint and SSR duty cycle
-+ 1kg load cell compatible [scale case design](./scale/)
++ 1kg load cell compatible [scale case design and dimmer case](./scale/)
 
 Can be installed on any espresso machine for temperature control but currently installed on a Calphalon temp iq
 
