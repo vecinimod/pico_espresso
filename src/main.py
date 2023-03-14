@@ -20,11 +20,11 @@ pin_SCK = Pin(5, Pin.OUT)
 
 hx711 = HX711(pin_SCK, pin_OUT)
 #scale = 300
-hx711.tare(3)
-hx711.set_time_constant(.95)
+hx711.tare()
+hx711.set_time_constant(.99)
 
 def callhx2():
-    value = hx711.get_value()
+    value = hx711.get_value()/741.263
     return(value)
     
 # Replace the following with your WIFI Credentials
@@ -98,7 +98,13 @@ class ssrCtrl:
         
 
     def calc_pulse(self, temp):
-        self.output = self.mypid(temp)            
+        if(self.mypid.setpoint - temp > 5):
+            self.output=100
+        elif(temp - self.mypid.setpoint > 5):
+            self.output = 0
+        else:
+            self.output = self.mypid(temp)
+            
         print("input", temp, "setpoint", self.mypid.setpoint, "output", self.output)
         
         if(self.output is None):
@@ -118,7 +124,7 @@ class ssrCtrl:
             self.last_read = now
             temp=await get_temp()
             self.calc_pulse(temp)    
-            self.oled.update(self.mypid.setpoint, self.mypid._last_input, self.output)
+            self.oled.update(self.mypid.setpoint, await get_temp(), self.output)
             #print("input",pid._last_input,  "output % ", round(pid._last_output/100,2)*100, "ssr state ", self.PWMOutput, "pinstate ", self.high, "pulsewidth",self.pulsewidth)
             
         if(self.target_pulse >= 1 and self.output < 100): #calling for output
@@ -177,8 +183,9 @@ async def echo(request, ws):
     while True:
         asyncio.sleep_ms(100)
         data = await ws.receive()
+        print(data)
         asyncio.sleep_ms(1)
-        hx711.tare(3)
+        hx711.tare()
         if(my_espresso.mode == "shot"): #check machine mode has to be in shot mode
             my_espresso.ui_mode_change_request()
         else:
@@ -193,7 +200,7 @@ async def data(request, ws):
         weight = callhx2()
         data_str = jdump({"time":my_espresso.mode_elapsed_time/1000,"temperature":temp,
                           "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
-                          "weight":weight/-300, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change})
+                          "weight":weight, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change})
         my_espresso.flag_ui_mode_change = False
         await ws.send(data_str)
 
@@ -297,12 +304,12 @@ class espresso:
             self.run_mode()
                 
             if(time.ticks_ms() > shutdownTime):
-                self.mypin.low()
+                await self.mypin.low()
                 parent_loop.stop()
                 break
             
             elif(self.mypid._last_input is not None and self.mypid._last_input > 155): #exit if 104c or 220f reached
-                self.mypin.low()
+                await  self.mypin.low()
                 parent_loop.stop()
                 break
             
@@ -322,4 +329,3 @@ myoled = oled_ctl(14, 15)
 
 my_espresso = espresso(myoled)
 my_espresso.call__async_main()
-
