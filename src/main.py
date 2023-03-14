@@ -20,8 +20,8 @@ pin_SCK = Pin(5, Pin.OUT)
 
 hx711 = HX711(pin_SCK, pin_OUT)
 #scale = 300
-hx711.tare()
-hx711.set_time_constant(.99)
+hx711.tare(3)
+hx711.set_time_constant(.95)
 
 def callhx2():
     value = hx711.get_value()/741.263
@@ -185,7 +185,7 @@ async def echo(request, ws):
         data = await ws.receive()
         print(data)
         asyncio.sleep_ms(1)
-        hx711.tare()
+        hx711.tare(3)
         if(my_espresso.mode == "shot"): #check machine mode has to be in shot mode
             my_espresso.ui_mode_change_request()
         else:
