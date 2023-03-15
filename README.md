@@ -13,7 +13,6 @@ Can be installed on any espresso machine for temperature control but currently i
 USE AT YOUR OWN RISK
 
 Future support for:
-+ zero crossing triac (robotdyn) pump control
 + flow meter (comes installed on temp iq)
 
 <img width="525" alt="image" src="https://user-images.githubusercontent.com/7244561/224531848-6d100060-4e1f-419d-9af9-2c0689ea6759.png">
