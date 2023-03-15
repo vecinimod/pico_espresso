@@ -2,7 +2,8 @@
 A simple Raspberry Pi Pico W based espresso machine controller with support for:
 + Web interface with no addtional server (runs on mcu) using websockets for real time data
 + Shot graph generation in web ui and automatic shot timer
-+ duty cycled PID with SSR
++ PID temperature control of boiler with duty cycled SSR
++ digital pump control using PSM and robotdyn dimmer 
 + integrated shot scale with auto tareing and data recording in web app 
 + OLED display for current temperature, setpoint and SSR duty cycle
 + 1kg load cell compatible [scale case design and dimmer case](./scale/)
