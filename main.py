@@ -4,13 +4,13 @@ from machine import Pin, Timer, I2C
 from ssd1306 import SSD1306_I2C
 from max6675 import MAX6675
 from picozero import Button
-from PID import PID #https://github.com/gastmaier/micropython-simple-pid/blob/master/simple_pid/PID.pysa
+from PID import PID #https://github.com/gastmaier/micropython-simple-pid/blob/master/simple_pid/PID.py
 from microdot_asyncio import Microdot, Response, send_file
 from microdot_asyncio_websocket import with_websocket
 import uasyncio as asyncio
 
 #https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
-# boot.py -- run on boot-up
+
 import network
 from secrets import secrets
    
@@ -24,7 +24,7 @@ hx711.tare(3)
 hx711.set_time_constant(.95)
 
 def callhx2():
-    value = hx711.get_value()
+    value = hx711.get_value()/741.263
     return(value)
     
 # Replace the following with your WIFI Credentials
@@ -77,7 +77,7 @@ class oled_ctl:
         else:
             duty = duty.format(duty = output)                
             
-        self.oled.text("Pico Caffe", 0, 0)
+        self.oled.text("VALENTINO Caffe", 0, 0)
         self.oled.text(target, 0, 16)
         self.oled.text(cur, 0, 32)
         self.oled.text(duty, 0, 48)
@@ -98,7 +98,13 @@ class ssrCtrl:
         
 
     def calc_pulse(self, temp):
-        self.output = self.mypid(temp)            
+        if(self.mypid.setpoint - temp > 5):
+            self.output=100
+        elif(temp - self.mypid.setpoint > 5):
+            self.output = 0
+        else:
+            self.output = self.mypid(temp)
+            
         print("input", temp, "setpoint", self.mypid.setpoint, "output", self.output)
         
         if(self.output is None):
@@ -118,7 +124,7 @@ class ssrCtrl:
             self.last_read = now
             temp=await get_temp()
             self.calc_pulse(temp)    
-            self.oled.update(self.mypid.setpoint, self.mypid._last_input, self.output)
+            self.oled.update(self.mypid.setpoint, await get_temp(), self.output)
             #print("input",pid._last_input,  "output % ", round(pid._last_output/100,2)*100, "ssr state ", self.PWMOutput, "pinstate ", self.high, "pulsewidth",self.pulsewidth)
             
         if(self.target_pulse >= 1 and self.output < 100): #calling for output
@@ -177,6 +183,7 @@ async def echo(request, ws):
     while True:
         asyncio.sleep_ms(100)
         data = await ws.receive()
+        print(data)
         asyncio.sleep_ms(1)
         hx711.tare(3)
         if(my_espresso.mode == "shot"): #check machine mode has to be in shot mode
@@ -193,10 +200,26 @@ async def data(request, ws):
         weight = callhx2()
         data_str = jdump({"time":my_espresso.mode_elapsed_time/1000,"temperature":temp,
                           "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
-                          "weight":weight/-300, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change})
+                          "weight":weight, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change})
         my_espresso.flag_ui_mode_change = False
         await ws.send(data_str)
 
+class psm:
+    def __init__(self, psm_pin=12, zc_pin=13):
+        self.psm_pin = Pin(psm_pin, Pin.OUT)
+        self.zc_pin = Pin(13, Pin.IN, pull=Pin.PULL_DOWN)
+        self.zc_pin.irq(trigger=self.zc_pin.IRQ_RISING, handler=self.pulse)
+        self.high=False
+        self.start_time= time.ticks_ms()
+        self.last_fire = self.start_time
+        self.count=0
+        
+    def pulse(self,pin):
+        self.count+=1
+        if(self.count%20<=5):
+            self.psm_pin.high()
+        else:
+            self.psm_pin.low()            
 
 # a class to manage the loop, run both control + sensor and app tasks
 class espresso:
@@ -297,15 +320,16 @@ class espresso:
             self.run_mode()
                 
             if(time.ticks_ms() > shutdownTime):
-                self.mypin.low()
+                await self.mypin.low()
                 parent_loop.stop()
                 break
             
             elif(self.mypid._last_input is not None and self.mypid._last_input > 155): #exit if 104c or 220f reached
-                self.mypin.low()
+                await  self.mypin.low()
                 parent_loop.stop()
                 break
             
+            #mypsm.pulse()
             await self.myssr.pulse()
             await asyncio.sleep_ms(1)
 
@@ -313,13 +337,20 @@ class espresso:
 led = machine.Pin("LED", machine.Pin.OUT)
 led.high()
 
+
+    
+
+
 sample_period=1000 # how often to run PID output calculation
 windowStartTime = time.ticks_ms()
-shutdownTime = windowStartTime + 10 * 60 * 1000 # turn off after 10 minutes
+shutdownTime = windowStartTime + 20 * 60 * 1000 # turn off after 10 minutes
 
 #setup oled
 myoled = oled_ctl(14, 15)
 
-my_espresso = espresso(myoled)
+#setup pump
+mypsm = psm(12,13)
+
+my_espresso = espresso(myoled) #TODO add pump to espresso as argument
 my_espresso.call__async_main()
 
