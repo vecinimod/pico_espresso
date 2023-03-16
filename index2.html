@@ -57,11 +57,13 @@
         espresso_data.push(this_data)
         lowest_time = 0        
         if(this_data["mode_change"]){
-            reset()
-            start()
-            f_espresso_data = window_espresso_data(lowest_time, [this_data])
-            old_espresso_data.push(espresso_data)
-            espresso_data=[this_data]
+            if(this_data["mode"]=="steam"||this_data["mode"]=="shot"){
+                reset()
+                start()
+                f_espresso_data = window_espresso_data(lowest_time, [this_data])
+                old_espresso_data.push(espresso_data)
+                espresso_data=[this_data]
+                }
         }
         f_espresso_data = window_espresso_data(lowest_time, espresso_data)
         
@@ -90,11 +92,12 @@
             ticks: [0, 32, 50, 75, 100] // display labels every 25
 },
           vAxis: {
+            scaleType: 'log',
             viewWindow: {
-                min: 0,
+                min: 1,
                 max: 330
             },
-            ticks: [0,32,100] // display labels every 25
+            ticks: [1,5,10,15,20,25,30,34, 100, 150, 300] // display labels every 25
 }
         };
 
