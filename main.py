@@ -274,7 +274,8 @@ class espresso:
         
         if(self.last_mode is not None and mode != self.last_mode) or self.ui_mode_change_requested:
             self.mode_change=True
-            self.mode_start_time = time.ticks_ms()            
+            if(self.last_mode!="shot"):#enable that we can save the graph from getting reset at 0
+                self.mode_start_time = time.ticks_ms()
         else:
             self.mode_change = False
             
@@ -337,10 +338,6 @@ class espresso:
 led = machine.Pin("LED", machine.Pin.OUT)
 led.high()
 
-
-    
-
-
 sample_period=1000 # how often to run PID output calculation
 windowStartTime = time.ticks_ms()
 shutdownTime = windowStartTime + 20 * 60 * 1000 # turn off after 10 minutes
@@ -349,8 +346,7 @@ shutdownTime = windowStartTime + 20 * 60 * 1000 # turn off after 10 minutes
 myoled = oled_ctl(14, 15)
 
 #setup pump
-mypsm = psm(12,13)
+#mypsm = psm(12,13)
 
 my_espresso = espresso(myoled) #TODO add pump to espresso as argument
 my_espresso.call__async_main()
-
