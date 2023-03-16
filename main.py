@@ -8,6 +8,7 @@ from PID import PID #https://github.com/gastmaier/micropython-simple-pid/blob/ma
 from microdot_asyncio import Microdot, Response, send_file
 from microdot_asyncio_websocket import with_websocket
 import uasyncio as asyncio
+from random import randint
 
 #https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
 
@@ -125,7 +126,6 @@ class ssrCtrl:
             temp=await get_temp()
             self.calc_pulse(temp)    
             self.oled.update(self.mypid.setpoint, await get_temp(), self.output)
-            #print("input",pid._last_input,  "output % ", round(pid._last_output/100,2)*100, "ssr state ", self.PWMOutput, "pinstate ", self.high, "pulsewidth",self.pulsewidth)
             
         if(self.target_pulse >= 1 and self.output < 100): #calling for output
 
@@ -161,8 +161,6 @@ Response.default_content_type = 'text/html'
 async def index(request):
     asyncio.sleep_ms(1)
     return send_file('index2.html')
-
-
 
 @app.route('/echo')
 @with_websocket
@@ -210,16 +208,48 @@ class psm:
         self.zc_pin = Pin(13, Pin.IN, pull=Pin.PULL_DOWN)
         self.zc_pin.irq(trigger=self.zc_pin.IRQ_RISING, handler=self.pulse)
         self.high=False
+        self.output=0
         self.start_time= time.ticks_ms()
         self.last_fire = self.start_time
         self.count=0
-        
-    def pulse(self,pin):
-        self.count+=1
-        if(self.count%20<=5):
+        self.mypid = PID(40, 0.05, 0.05, setpoint=10, scale='ms',
+                         output_limits=[0, 100], proportional_on_measurement=False)
+
+    def set_output(self, req_output):
+        if(req_output > 100):
+            req_output = 100
+        elif(req_output < 0):
+            req_output = 0
+            
+        self.output = req_output
+            
+    def pulse(self, pin):
+        if(self.output==100):
+            self.psm_pin.high()
+        elif(self.count%(100-self.output)<=10):
             self.psm_pin.high()
         else:
-            self.psm_pin.low()            
+            self.psm_pin.low()
+        self.count+=1
+
+            
+    def sim(self):
+        oo = 0
+        startt=time.ticks_ms()
+        timeno = 0
+        input=0
+        while(True):
+            timeno = time.ticks_diff(time.ticks_ms(),startt)
+            input = timeno/100000 *.2 * oo - randint(0,100)/50
+            if(input<0):
+                input = 0
+            if(input>10):
+                input=10
+            if(timeno % 100 == 0):
+                oo = self.mypid(input)
+                print("time", timeno, "input",input, "output", oo, "seto", self.output)
+                self.set_output(oo)         
+    
 
 # a class to manage the loop, run both control + sensor and app tasks
 class espresso:
@@ -346,7 +376,9 @@ shutdownTime = windowStartTime + 20 * 60 * 1000 # turn off after 10 minutes
 myoled = oled_ctl(14, 15)
 
 #setup pump
-#mypsm = psm(12,13)
-
+mypsm = psm(12,13)
+mypsm.sim()
+#mypsm.set_output(85)
 my_espresso = espresso(myoled) #TODO add pump to espresso as argument
 my_espresso.call__async_main()
+
