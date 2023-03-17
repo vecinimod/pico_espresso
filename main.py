@@ -202,6 +202,38 @@ async def data(request, ws):
         my_espresso.flag_ui_mode_change = False
         await ws.send(data_str)
 
+class shot:
+    def __init__(self, profile):
+        self.profile = profile
+        self.stage = 0
+        self.time_start_stage=0
+        #extend the profile to create control over time endpoints
+        cumultime = 0
+        for k in sorted(self.profile.keys()):
+            self.profile[k]["start"] = cumultime 
+            self.profile[k]["end"] = cumultime + self.profile[k]["duration"]
+            cumultime = self.profile[k]["end"]
+        print(self.profile)
+            
+    def update_shot_pump_output(self, time_ms, mass):
+        _output = -1
+        time_s = time_ms / 1000
+        if(self.stage == 0):
+            self.time_start_stage = time_s
+            self.stage=1
+            
+        if(mass<0):
+            mass = 0
+ 
+        if(time_s - self.time_start_stage > self.profile[self.stage]["duration"] or self.profile[self.stage]["max_mass"] < mass):
+            self.stage += 1
+            self.time_start_stage = time_s
+            
+        if(self.stage<=len(self.profile)):        
+            self.output = (time_s - self.time_start_stage) / self.profile[self.stage]["duration"] * (self.profile[self.stage]["pump_end"] - self.profile[self.stage]["pump_start"]) + self.profile[self.stage]["pump_start"]
+        else:
+            self.output = 0
+        
 class psm:
     def __init__(self, psm_pin=12, zc_pin=13):
         self.psm_pin = Pin(psm_pin, Pin.OUT)
@@ -224,7 +256,9 @@ class psm:
         self.output = req_output
             
     def pulse(self, pin):
-        if(self.output==100):
+        if(self.output<=1):
+            self.psm_pin.low()
+        elif(self.output==100):
             self.psm_pin.high()
         elif(self.count%(100-self.output)<=10):
             self.psm_pin.high()
@@ -232,7 +266,7 @@ class psm:
             self.psm_pin.low()
         self.count+=1
 
-            
+    
     def sim(self):
         oo = 0
         startt=time.ticks_ms()
@@ -245,12 +279,35 @@ class psm:
                 input = 0
             if(input>10):
                 input=10
-            if(timeno % 100 == 0):
+            if(timeno % 1000 == 0):
                 oo = self.mypid(input)
                 print("time", timeno, "input",input, "output", oo, "seto", self.output)
-                self.set_output(oo)         
+                self.set_output(oo)
     
+    def test_output(self, profile):
+        startt=time.ticks_ms()
+        timeno = 0
+        my_shot = shot(profile)
+        mass=0
+        while(True):
+            timeno = time.ticks_diff(time.ticks_ms(),startt)
+            my_shot.update_shot_pump_output(timeno, mass)
+            self.set_output(my_shot.output)
+            if(timeno % 1000 == 0):
+                mass = callhx2()
+                print("time", timeno/1000,"stage",my_shot.profile[my_shot.stage]["name"], "output", "shoto", my_shot.output, "selfo", self.output, "mass", mass)
 
+                
+profile = {
+    1: {"name":"pre-infusion","duration":10, "pump_start":100, "pump_end":100, "max_mass":1},
+    2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
+    3: {"name":"ramp","duration":4, "pump_start":0, "pump_end":70, "max_mass":100},
+    4: {"name":"pour","duration":60, "pump_start":70, "pump_end":70, "max_mass":45}
+            }
+     
+
+            
+        
 # a class to manage the loop, run both control + sensor and app tasks
 class espresso:
     def __init__(self, oled, sample_period=1000, ssr_pin=2, steam_btn_pin=9, shot_btn_pin=10):
@@ -336,7 +393,8 @@ class espresso:
                 self. myssr.reset()
                 
         self.mode_elapsed_time = time.ticks_diff(time.ticks_ms(),self.mode_start_time)
-                
+
+
     async def run_ssr(self, parent_loop):        
         self.mypid = PID(1.7, 0.05, 0.05, setpoint=0, scale='ms')
         self.mypid.output_limits = (0, 100)
@@ -377,8 +435,7 @@ myoled = oled_ctl(14, 15)
 
 #setup pump
 mypsm = psm(12,13)
-mypsm.sim()
+mypsm.test_output(profile)
 #mypsm.set_output(85)
 my_espresso = espresso(myoled) #TODO add pump to espresso as argument
 my_espresso.call__async_main()
-
