@@ -110,7 +110,7 @@
     </script>
     <script type="text/javascript">
         window_espresso_data = function(start_time, esp_data){
-        keys = ['time', 'temperature', 'output', 'setpoint', 'weight']
+        keys = ['time', 'temperature', 'output', 'setpoint', 'weight','pump_output']
         var this_data = esp_data.map(function(a) {
             return keys.map(function(key) {
             return a[key];
@@ -130,7 +130,8 @@
               "output": 0,
               "setpoint": 0,
               "weight": 0,
-              "state": "sleep"
+              "state": "sleep",
+              "pump_output":0
           }]
        old_espresso_data=[]
       f_espresso_data = window_espresso_data(-1, espresso_data)
