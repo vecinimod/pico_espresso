@@ -3,7 +3,7 @@ A simple Raspberry Pi Pico W based espresso machine controller with support for:
 + Web interface with no addtional server (runs on mcu) using websockets for real time data
 + Shot graph generation in web ui and automatic shot timer
 + PID temperature control of boiler with duty cycled SSR
-+ digital pump control using PSM and robotdyn dimmer 
++ digital pump control profiles using PSM and robotdyn dimmer 
 + integrated shot scale with auto tareing and data recording in web app 
 + OLED display for current temperature, setpoint and SSR duty cycle
 + 1kg load cell compatible [scale case design and dimmer case](./scale/)
@@ -20,6 +20,8 @@ Future support for:
 <img width="765" alt="image" src="https://user-images.githubusercontent.com/7244561/224582345-2e28960f-3b12-4f8a-a3c9-76c68b5b7ca1.png">
 
 <img width="484" alt="image" src="https://user-images.githubusercontent.com/7244561/224907716-6cad9fbb-22c7-4549-ba82-bac22ce69091.png">
+
+<img width="716" alt="image" src="https://user-images.githubusercontent.com/7244561/226081132-0829dc62-02af-465b-8f18-45fab9d41ccb.png">
 
 
 BOM ($35 to $67 depending on basic (ssr + pico + max6675 + tap) to complete (Add oled, load cell and dimmer)
