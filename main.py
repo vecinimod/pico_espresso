@@ -500,10 +500,10 @@ myoled = oled_ctl(14, 15)
 #setup pump
 
 profile = {
-    1: {"name":"pre-infusion","duration":10, "pump_start":100, "pump_end":100, "max_mass":1},
+    1: {"name":"pre-infusion","duration":10, "pump_start":25, "pump_end":75, "max_mass":1},
     2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
-    3: {"name":"ramp","duration":4, "pump_start":0, "pump_end":85, "max_mass":100},
-    4: {"name":"pour","duration":60, "pump_start":85, "pump_end":85, "max_mass":45}
+    3: {"name":"ramp","duration":4, "pump_start":30, "pump_end":65, "max_mass":100},
+    4: {"name":"pour","duration":60, "pump_start":65, "pump_end":95, "max_mass":45}
             }
 
 #mypump=pump(profile, mypsm)
