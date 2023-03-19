@@ -6,5 +6,5 @@
 
 | SSR          | +  | \- |
 | ------------ | -- | -- |
-| MCU PIN Name | +  | \- |
-| MCU PIN #    | 23 | 36 |
+| MCU PIN Name | GPIO2  | GND |
+| MCU PIN #    | 4 | 3 |
