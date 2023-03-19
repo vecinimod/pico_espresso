@@ -2,24 +2,26 @@
 A simple Raspberry Pi Pico W based espresso machine controller with support for:
 + Web interface with no addtional server (runs on mcu) using websockets for real time data
 + Shot graph generation in web ui and automatic shot timer
-+ duty cycled PID with SSR
++ PID temperature control of boiler with duty cycled SSR
++ digital pump control profiles using PSM and robotdyn dimmer 
 + integrated shot scale with auto tareing and data recording in web app 
 + OLED display for current temperature, setpoint and SSR duty cycle
 + 1kg load cell compatible [scale case design and dimmer case](./scale/)
++ [flow meter](https://kh-technic.dk/wp-content/uploads/2020/02/AB32.pdf) measurement, logging and visualization
 
 Can be installed on any espresso machine for temperature control but currently installed on a Calphalon temp iq
 
 USE AT YOUR OWN RISK
 
-Future support for:
-+ zero crossing triac (robotdyn) pump control
-+ flow meter (comes installed on temp iq)
-
 <img width="525" alt="image" src="https://user-images.githubusercontent.com/7244561/224531848-6d100060-4e1f-419d-9af9-2c0689ea6759.png">
 
-<img width="765" alt="image" src="https://user-images.githubusercontent.com/7244561/224582345-2e28960f-3b12-4f8a-a3c9-76c68b5b7ca1.png">
+<img width="832" alt="image" src="https://user-images.githubusercontent.com/7244561/226158709-e625b27c-5086-42d7-906a-51a9e0636f17.png">
 
 <img width="484" alt="image" src="https://user-images.githubusercontent.com/7244561/224907716-6cad9fbb-22c7-4549-ba82-bac22ce69091.png">
+
+<img width="901" alt="image" src="https://user-images.githubusercontent.com/7244561/226187601-d909c325-ae90-416f-a928-a7035ad82d3b.png">
+
+<img width="716" alt="image" src="https://user-images.githubusercontent.com/7244561/226081132-0829dc62-02af-465b-8f18-45fab9d41ccb.png">
 
 
 BOM ($35 to $67 depending on basic (ssr + pico + max6675 + tap) to complete (Add oled, load cell and dimmer)
