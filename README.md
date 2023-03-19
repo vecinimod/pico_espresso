@@ -7,17 +7,15 @@ A simple Raspberry Pi Pico W based espresso machine controller with support for:
 + integrated shot scale with auto tareing and data recording in web app 
 + OLED display for current temperature, setpoint and SSR duty cycle
 + 1kg load cell compatible [scale case design and dimmer case](./scale/)
++ [flow meter](https://kh-technic.dk/wp-content/uploads/2020/02/AB32.pdf) measurement, logging and visualization
 
 Can be installed on any espresso machine for temperature control but currently installed on a Calphalon temp iq
 
 USE AT YOUR OWN RISK
 
-Future support for:
-+ flow meter (comes installed on temp iq)
-
 <img width="525" alt="image" src="https://user-images.githubusercontent.com/7244561/224531848-6d100060-4e1f-419d-9af9-2c0689ea6759.png">
 
-<img width="765" alt="image" src="https://user-images.githubusercontent.com/7244561/224582345-2e28960f-3b12-4f8a-a3c9-76c68b5b7ca1.png">
+<img width="832" alt="image" src="https://user-images.githubusercontent.com/7244561/226158709-e625b27c-5086-42d7-906a-51a9e0636f17.png">
 
 <img width="484" alt="image" src="https://user-images.githubusercontent.com/7244561/224907716-6cad9fbb-22c7-4549-ba82-bac22ce69091.png">
 
