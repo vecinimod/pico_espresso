@@ -16,7 +16,7 @@ import network
 from secrets import secrets
    
 from hx711_pio import HX711
-pin_OUT = Pin(6, Pin.IN, pull=Pin.PULL_DOWN)
+pin_OUT = Pin(6, Pin.IN, pull=Pin.PULL_UP)
 pin_SCK = Pin(5, Pin.OUT)
 
 hx711 = HX711(pin_SCK, pin_OUT)
@@ -27,7 +27,41 @@ hx711.set_time_constant(.95)
 def callhx2():
     value = hx711.get_value()/741.263
     return(value)
-    
+
+class flowmeter:
+    def __init__(self, pinin=3):
+        self.pin_IN = Pin(pinin, Pin.IN, pull=Pin.PULL_DOWN )
+        self.last_time=0
+        self.count= 0
+        self.flow=0
+        self.pin_IN.irq(trigger=self.pin_IN.IRQ_RISING, handler=self.update_flow)
+
+
+    def update_flow(self,pin):
+        self.count +=1
+        
+    def compute_flow(self):
+        if(self.last_time==0):
+            self.last_time=time.ticks_ms()
+            self.last_count=self.count
+            flow = 0
+        else:
+            this_time = time.ticks_ms()
+            dt = time.ticks_diff(this_time, self.last_time)
+            dct = self.count - self.last_count
+            mlx1000 = 5195 * dct #1000ths of ml i.e. microliters
+            flow = (mlx1000 / 1000) / (dt/1000)
+            self.last_time = this_time
+            self.last_count = self.count
+        self.flow = flow
+
+myflow=flowmeter()
+
+# pin_IN = Pin(3, Pin.IN, Pin.PULL_DOWN )
+# def update_flow(pinn):
+#     print("floooow")
+# pin_IN.irq(trigger=pin_IN.IRQ_RISING, handler=update_flow)
+
 # Replace the following with your WIFI Credentials
 secrets = secrets()
 SSID = secrets.SSID
@@ -160,6 +194,7 @@ Response.default_content_type = 'text/html'
 @app.route('/')
 async def index(request):
     asyncio.sleep_ms(1)
+    print("index request")
     return send_file('index2.html')
 
 @app.route('/echo')
@@ -199,7 +234,8 @@ async def data(request, ws):
         data_str = jdump({"time":my_espresso.mode_elapsed_time/1000,"temperature":temp,
                           "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
                           "weight":weight, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change,
-                          "pump_output":my_espresso.mypump.output})
+                          "pump_output":my_espresso.mypump.output,
+                          "flow":myflow.flow})
         my_espresso.flag_ui_mode_change = False
         await ws.send(data_str)
 
@@ -248,7 +284,10 @@ class pump:
         self.update_shot_pump_output(timenow, self.mass)
         self.psm.set_output(self.output)
         if(self.stage<=len(self.profile) and timenow%1000==0):
-            print("time", timenow/1000,"stage",self.profile[self.stage]["name"], "output", "shoto", self.output, "selfo", self.output, "mass", self.mass)
+            myflow.compute_flow()
+            print("time", timenow/1000,"stage",self.profile[self.stage]["name"],
+                  "output", self.output, "mass", self.mass, "flowct", myflow.count,
+                  "flow", myflow.flow)
         else:
             return
     def reset(self):
@@ -467,5 +506,9 @@ profile = {
     4: {"name":"pour","duration":60, "pump_start":85, "pump_end":85, "max_mass":45}
             }
 
+#mypump=pump(profile, mypsm)
+#mypump.test_output()
+
+#mypsm.set_output(85)
 my_espresso = espresso(myoled, profile) #TODO add pump to espresso as argument
 my_espresso.call__async_main()
