@@ -25,10 +25,12 @@
 | MCU PIN Name | GND | GPIO6 | GPIO5 | 3.3v |
 | MCU PIN #    | 8   | 9     | 7     | 36   |
 
-| Robotdyn Dimmer | VCC  | GND | ZC     | PSM    |
-| --------------- | ---- | --- | ------ | ------ |
-| MCU PIN Name    | 3.3v | GND | GPIO13 | GPIO12 |
-| MCU PIN #       | 36   | 18  | 17     | 16     |
+| Robotdyn Dimmer | VCC  | GND | ZC     | PSM    | OUT              | N               | IN   |
+| --------------- | ---- | --- | ------ | ------ | ---------------- | --------------- | ---- |
+| Mains           |      |     |        |        |                  | neutral         | live |
+| Pump            |      |     |        |        | large gauge wire | pump thin gauge |      |
+| MCU PIN Name    | 3.3v | GND | GPIO13 | GPIO12 |                  |                 |      |
+| MCU PIN #       | 36   | 18  | 17     | 16     |                  |                 |
 
 | OLED         | GND | VCC  | SCL    | SDA    |
 | ------------ | --- | ---- | ------ | ------ |
