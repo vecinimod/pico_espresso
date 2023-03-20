@@ -1,4 +1,4 @@
-# pico espresso - $25 wifi enabled universal espresso machine PID+++ mod
+# pico espresso - $25 wifi enabled universal espresso machine PID +++ mod
 A simple Raspberry Pi Pico W based espresso machine controller with support for:
 + Web interface with no addtional server (runs on mcu) using websockets for real time data
 + Shot graph generation in web ui and automatic shot timer
