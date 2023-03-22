@@ -1,3 +1,17 @@
+# Installation of software on pico w
+1. Install Micropython on your pico w
+2. Install the following using thonny's package manager:
+    1. [picozero](https://github.com/RaspberryPiFoundation/picozero)
+    2. [ssd1306](https://github.com/stlehmann/micropython-ssd1306/blob/master/ssd1306.py)
+    3. [uasyncio](https://github.com/peterhinch/micropython-async/blob/master/v3/docs/TUTORIAL.md)
+3. Install [microdot](https://github.com/miguelgrinberg/microdot), and it's websocket, async, and async websocket helper libraries by copying the files from github in the src folder of project that correspond to these (4 files total for microdot)
+4. Add contents of lib from this project to the pico's lib directory (max6675.py, PID.py, hx711_pio.py and secrets.py)
+5. Edit secrets.py accordingly for your network
+6. copy main.py to your pico w
+7. determine your scale factor for the loadcell and edit line 28 of main.py
+
+# Pinout guides for each peripheral
+
 | Max6675      | GND | VCC  | SCK    | CS     | SO     |
 | ------------ | --- | ---- | ------ | ------ | ------ |
 | MCU PIN Name | GND | 3.3v | GPIO18 | GPIO17 | GPIO16 |
