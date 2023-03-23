@@ -195,7 +195,7 @@ Response.default_content_type = 'text/html'
 async def index(request):
     asyncio.sleep_ms(1)
     print("index request")
-    return send_file('index2.html')
+    return send_file('index.html')
 
 @app.route('/echo')
 @with_websocket
