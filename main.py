@@ -9,13 +9,13 @@ from microdot_asyncio import Microdot, Response, send_file
 from microdot_asyncio_websocket import with_websocket
 import uasyncio as asyncio
 from random import randint
+import network
+from secrets import secrets
+from hx711_pio import HX711
 
 #https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
 
-import network
-from secrets import secrets
-   
-from hx711_pio import HX711
+
 pin_OUT = Pin(6, Pin.IN, pull=Pin.PULL_UP)
 pin_SCK = Pin(5, Pin.OUT)
 
@@ -78,9 +78,9 @@ def do_connect():
             pass
     print('Connected! Network config:', sta_if.ifconfig())
 
-so = Pin(16, Pin.IN)
-sck = Pin(18, Pin.OUT)
-cs = Pin(17, Pin.OUT)
+so = Pin(19, Pin.IN)
+sck = Pin(21, Pin.OUT)
+cs = Pin(20, Pin.OUT)
  
 max = MAX6675(sck, cs , so)
 async def get_temp():
@@ -88,9 +88,11 @@ async def get_temp():
     return data
 
 class oled_ctl:
-    def __init__(self,sda, scl):
+    def __init__(self,sda, scl, pwr):
         i2c=I2C(1,sda=Pin(sda), scl=Pin(scl), freq=400000)
         self.oled = SSD1306_I2C(128, 64, i2c)
+        self.pwr = Pin(pwr, Pin.OUT)
+        self.pwr.high()
     def update(self, setpoint, input_, output):
         self.oled.fill(0)
             
@@ -230,6 +232,7 @@ async def data(request, ws):
     while True:
         await asyncio.sleep_ms(my_espresso.sample_period)
         temp = await get_temp()
+ 
         weight = callhx2()
         data_str = jdump({"time":my_espresso.mode_elapsed_time/1000,"temperature":temp,
                           "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
@@ -365,7 +368,7 @@ class psm:
 class espresso:
     def __init__(self, oled, profile, sample_period=1000, ssr_pin=2, steam_btn_pin=9, shot_btn_pin=10):
 
-        self.default_shot_temp = 10
+        self.default_shot_temp = 101
         self.user_shot_temp = 0
         self.default_steam_temp = 137
         self.user_steam_temp = 0
@@ -495,14 +498,14 @@ windowStartTime = time.ticks_ms()
 shutdownTime = windowStartTime + 20 * 60 * 1000 # turn off after 10 minutes
 
 #setup oled
-myoled = oled_ctl(14, 15)
+myoled = oled_ctl(14, 15, 16)
 
 #setup pump
 
 profile = {
-    1: {"name":"pre-infusion","duration":10, "pump_start":25, "pump_end":75, "max_mass":1},
+    1: {"name":"pre-infusion","duration":10, "pump_start":70, "pump_end":70, "max_mass":1},
     2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
-    3: {"name":"ramp","duration":4, "pump_start":30, "pump_end":65, "max_mass":100},
+    3: {"name":"ramp","duration":4, "pump_start":35, "pump_end":65, "max_mass":100},
     4: {"name":"pour","duration":60, "pump_start":65, "pump_end":95, "max_mass":45}
             }
 
