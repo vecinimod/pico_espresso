@@ -15,7 +15,7 @@ USE AT YOUR OWN RISK
 
 <img width="525" alt="image" src="https://user-images.githubusercontent.com/7244561/224531848-6d100060-4e1f-419d-9af9-2c0689ea6759.png">
 
-<img width="767" alt="image" src="https://user-images.githubusercontent.com/7244561/227737649-fea956d9-1fee-48fc-92b2-5b3d227c550f.png">
+<img width="680" alt="image" src="https://user-images.githubusercontent.com/7244561/227738748-b1597998-924c-48af-b5ff-2d5192ed8985.png">
 
 <img width="716" alt="image" src="https://user-images.githubusercontent.com/7244561/226081132-0829dc62-02af-465b-8f18-45fab9d41ccb.png">
 
