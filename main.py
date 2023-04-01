@@ -527,7 +527,7 @@ shot_profile = {
     1: {"name":"pre-infusion","duration":7, "pump_start":100, "pump_end":100, "max_mass":3},
     2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
     3: {"name":"ramp","duration":4, "pump_start":35, "pump_end":75, "max_mass":100},
-    4: {"name":"pour","duration":60, "pump_start":75, "pump_end":75, "max_mass":45}
+    4: {"name":"pour","duration":60, "pump_start":65, "pump_end":0, "max_mass":45}
             }
 
 steam_profile = {
