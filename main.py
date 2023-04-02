@@ -27,7 +27,9 @@ hx711.set_time_constant(.95)
 def callhx2():
     value = hx711.get_value()/741.263
     return(value)
-
+# print(callhx2())
+# time.sleep_ms(3000)
+# print(callhx2())
 class flowmeter:
     def __init__(self, pinin=3):
         self.pin_IN = Pin(pinin, Pin.IN, pull=Pin.PULL_DOWN )
@@ -49,8 +51,8 @@ class flowmeter:
             this_time = time.ticks_ms()
             dt = time.ticks_diff(this_time, self.last_time)
             dct = self.count - self.last_count
-            mlx1000 = 5195 * dct #1000ths of ml i.e. microliters
-            flow = (mlx1000 / 1000) / (dt/1000)
+            mlx1000 = .5195 * dct #1000ths of ml i.e. microliters
+            flow = mlx1000 / (dt/1000)
             self.last_time = this_time
             self.last_count = self.count
         self.flow = flow
@@ -86,8 +88,13 @@ max = MAX6675(sck, cs , so)
 async def get_temp():
     data= max.read()
     return data
-
 class oled_ctl:
+    def __init(self, sda, scl, pwr):
+        return
+    def update(self, setpoint, input_, output):
+        return
+    
+class oled_ctl_old:
     def __init__(self,sda, scl, pwr):
         i2c=I2C(1,sda=Pin(sda), scl=Pin(scl), freq=400000)
         self.oled = SSD1306_I2C(128, 64, i2c)
@@ -250,15 +257,19 @@ class pump:
         self.time_start_stage=0
         self.psm = psm
         self.output=0
-        
-        #extend the profile to create control over time endpoints
+        self.set_profile(profile)
+    
+    def set_profile(self, profile):
+        self.profile = profile
         cumultime = 0
+
         for k in sorted(self.profile.keys()):
             self.profile[k]["start"] = cumultime 
             self.profile[k]["end"] = cumultime + self.profile[k]["duration"]
             cumultime = self.profile[k]["end"]
-        print(self.profile)
-            
+
+        print("updated pump profile:", self.profile)
+    
     def update_shot_pump_output(self, time_ms, mass):
         _output = -1
         time_s = time_ms / 1000
@@ -274,23 +285,25 @@ class pump:
                 self.stage += 1
                 self.time_start_stage = time_s
             if(self.stage<=len(self.profile)):         
-                self.output = (time_s - self.time_start_stage) / self.profile[self.stage]["duration"] * (self.profile[self.stage]["pump_end"] - self.profile[self.stage]["pump_start"]) + self.profile[self.stage]["pump_start"]
+                self.output = ((time_s - self.time_start_stage) / self.profile[self.stage]["duration"]) * (self.profile[self.stage]["pump_end"] - self.profile[self.stage]["pump_start"]) + self.profile[self.stage]["pump_start"]
         else:
             self.output = 0
 
-    def run_pump(self, start_time, current_time, mass_update_intvl=50):
+    def run_pump(self, start_time, current_time, mass_update_intvl=250):
         timenow = time.ticks_diff(current_time, start_time)
         if(timenow<100):
             self.mass=0
-        if(timenow%mass_update_intvl==0):
+        if(timenow%mass_update_intvl<=10):
             self.mass = callhx2()
         self.update_shot_pump_output(timenow, self.mass)
         self.psm.set_output(self.output)
-        if(self.stage<=len(self.profile) and timenow%1000==0):
+#         if(self.stage<=len(self.profile) and timenow%1000==0):
+        if(timenow%1000==0):
             myflow.compute_flow()
-            print("time", timenow/1000,"stage",self.profile[self.stage]["name"],
-                  "output", self.output, "mass", self.mass, "flowct", myflow.count,
-                  "flow", myflow.flow)
+            if(self.stage<=len(self.profile)):
+                print("time", timenow/1000,"stage",self.profile[self.stage]["name"],
+                      "output", self.output, "mass", self.mass, "flowct", myflow.count,
+                      "flow", myflow.flow)
         else:
             return
     def reset(self):
@@ -333,19 +346,21 @@ class psm:
             req_output = 0
             
         self.output = req_output
-            
+
     def pulse(self, pin):
-        if(self.output<=1):
-            self.psm_pin.low()
-        elif(self.output==100):
-            self.psm_pin.high()
-        elif(self.count%(100-self.output)<=10):
+        if(self.output==100):
             self.psm_pin.high()
         else:
-            self.psm_pin.low()
-        self.count+=1
-
-    
+            if(self.count*100 % (10000//(100-self.output)) < 100): # ct * 100 % (100//((100-output)*100))
+                self.psm_pin.low()
+            else:
+                self.psm_pin.high()
+                
+        if(self.count==100):
+            self.count=1
+        else:
+            self.count+=1
+        
     def sim(self):
         oo = 0
         startt=time.ticks_ms()
@@ -366,11 +381,11 @@ class psm:
         
 # a class to manage the loop, run both control + sensor and app tasks
 class espresso:
-    def __init__(self, oled, profile, sample_period=1000, ssr_pin=2, steam_btn_pin=9, shot_btn_pin=10):
+    def __init__(self, oled, shot_profile, steam_profile, sample_period=1000, ssr_pin=2, steam_btn_pin=9, shot_btn_pin=10):
 
         self.default_shot_temp = 101
         self.user_shot_temp = 0
-        self.default_steam_temp = 137
+        self.default_steam_temp = 150
         self.user_steam_temp = 0
 
         self.sample_period = sample_period
@@ -381,7 +396,8 @@ class espresso:
         self.mypin = machine.Pin(ssr_pin, Pin.OUT)
         self.oled = oled
         
-        self.pump_profile = profile
+        self.shot_profile = shot_profile
+        self.steam_profile = steam_profile
         
         self.last_mode = None
         self.mode = None
@@ -438,13 +454,15 @@ class espresso:
                     self.mypid.setpoint = self.user_steam_temp
                 else:
                     self.mypid.setpoint = self.default_steam_temp
-            
+                self.mypump.set_profile(self.steam_profile)
+                
             elif(self.mode=="shot"):
                 self.mypid.reset()
                 if(self.user_shot_temp>0):
                     self.mypid.setpoint = self.user_shot_temp
                 else:
                     self.mypid.setpoint = self.default_shot_temp
+                self.mypump.set_profile(self.shot_profile)
                 
             elif(self.mode=="sleep"):
                 self.mypin.low()
@@ -463,7 +481,7 @@ class espresso:
         self.myssr = ssrCtrl(self.sample_period, self.mypid, self.mypin, self.oled)
         
         self.mypsm = psm(12,13)
-        self.mypump = pump(self.pump_profile, self.mypsm)
+        self.mypump = pump(self.shot_profile, self.mypsm)
         self.mode_start_time = time.ticks_ms()
 
         while(True):
@@ -474,7 +492,10 @@ class espresso:
             
             if(self.mode=="shot"):
                 self.mypump.run_pump(self.mode_start_time, time.ticks_ms(), 1000)
-            
+                
+            elif(self.mode=="steam"):
+                self.mypump.run_pump(self.mode_start_time, time.ticks_ms(), 1000)
+                
             if(time.ticks_ms() > shutdownTime):
                 await self.mypin.low()
                 parent_loop.stop()
@@ -502,16 +523,17 @@ myoled = oled_ctl(14, 15, 16)
 
 #setup pump
 
-profile = {
-    1: {"name":"pre-infusion","duration":10, "pump_start":70, "pump_end":70, "max_mass":1},
+shot_profile = {
+    1: {"name":"pre-infusion","duration":7, "pump_start":100, "pump_end":100, "max_mass":3},
     2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
-    3: {"name":"ramp","duration":4, "pump_start":35, "pump_end":65, "max_mass":100},
-    4: {"name":"pour","duration":60, "pump_start":65, "pump_end":95, "max_mass":45}
+    3: {"name":"ramp","duration":4, "pump_start":35, "pump_end":75, "max_mass":100},
+    4: {"name":"pour","duration":60, "pump_start":65, "pump_end":0, "max_mass":45}
             }
 
-#mypump=pump(profile, mypsm)
-#mypump.test_output()
+steam_profile = {
+    1: {"name":"preheat","duration":20, "pump_start":0, "pump_end":0, "max_mass":100},
+    2: {"name":"steam","duration":250, "pump_start":2, "pump_end":2, "max_mass":100}
+            }
 
-#mypsm.set_output(85)
-my_espresso = espresso(myoled, profile) #TODO add pump to espresso as argument
+my_espresso = espresso(myoled, shot_profile, steam_profile) #TODO add pump to espresso as argument
 my_espresso.call__async_main()
