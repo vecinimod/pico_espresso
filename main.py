@@ -15,7 +15,7 @@ from hx711_pio import HX711
 
 #input device classes
 class scale:
-    def __init__(self, outpin=5, sckpin=6):
+    def __init__(self, outpin=6, sckpin=5):
         pin_OUT = Pin(outpin, Pin.IN, pull=Pin.PULL_UP)
         pin_SCK = Pin(sckpin, Pin.OUT)
 
@@ -23,11 +23,12 @@ class scale:
         self.hx711.tare(3)
         self.hx711.set_time_constant(.95)
 
-        def get_weight(self):
-            value = self.hx711.get_value()/741.263
-            return(value)
-        def tare(self):
-            self.hx711.tare(3)
+    def get_weight(self):
+        value = self.hx711.get_value()/741.263
+        return(value)
+    
+    def tare(self):
+        self.hx711.tare(3)
             
 class pressure:
     def __init__(self, adcpin=1):
@@ -78,7 +79,7 @@ class thermocouple:
  
         self.max = MAX6675(sck, cs , so)
         
-    async def get_temp(self):
+    def get_temp(self):
         data = self.max.read()
         return data
 
@@ -135,7 +136,6 @@ class heater:
         self.high = False
         self.last_read = 0
         self.end_fire = 0
-        self.mypid = mypid
         self.mypin = mypin
         self.oled=oled
         self.weight = 0
@@ -168,7 +168,7 @@ class heater:
         if(self.last_read==0 or now - self.last_read > self.WindowSize):        #new measurement and target pulse
             self.mypin.low()
             self.last_read = now
-            temp=await get_temp()
+            self.get_temp()
             self.calc_pulse(temp)    
             
         if(self.target_pulse >= 1 and self.output < 100): #calling for output
@@ -292,16 +292,21 @@ class mode_profile:
 
 class pico_espresso:
     def __init__(self, shot_profile, steam_profile, sample_period=1000):
+
+        self.sample_period = sample_period
+        
         #watchdog flag
-        self.shutdown = False
+        self.flag_to_shutdown = False
         
         #start in sleep mode regardless of button status
         self.mode = "sleep"
         self.last_mode = "sleep"
+        self.mode_change = False
         
         #store profile config
         self.shot_profile = shot_profile
         self.steam_profile = steam_profile
+        self.active_profile = None
         
         #create all inputs
         self.myscale = scale()
@@ -320,10 +325,10 @@ class pico_espresso:
         #create switch callbacks to sense state
         self.steam_button=Button(9)
         self.shot_button=Button(10)
-        self.steam_button.when_pressed = sense_mode
-        self.steam_button.when_released = sense_mode
-        self.shot_button.when_pressed = sense_mode
-        self.shot_button.when_released = sense_mode
+        self.steam_button.when_pressed = self.sense_mode
+        self.steam_button.when_released = self.sense_mode
+        self.shot_button.when_pressed = self.sense_mode
+        self.shot_button.when_released = self.sense_mode
         #https://picozero.readthedocs.io/en/latest/recipes.html#buttons
         
         #set when pressesd and whenreleased for both steam and shot switches to call the check state
@@ -365,7 +370,7 @@ class pico_espresso:
             self.sleep()
             print("CAUTION: TEMP OVER 170")
             return True
-        else
+        else:
             return False
         #set pins low at certain time
         
@@ -388,7 +393,7 @@ class pico_espresso:
                 
                 #print sensor output
                 print("temp", self.cur_temp, "flow", self.cur_flow, "pressure", self.cur_pressure, "weight", self.cur_weight)
-                if(self.active_profile.output is not None):
+                if(self.active_profile is not None and not self.active_profile.output =={} ):
                     print("profile stage", self.active_profile.current_stage)
                     print("profile output", self.active_profile.output)
                     
@@ -419,7 +424,7 @@ class pico_espresso:
         #if exited loop set output to low just in case!
         self.sleep()
         
-defult_shot_profile = {
+default_shot_profile = {
     "preheat":{"setpoint":100, "exit_temp_range":[95, 105]},
     "stages":{
         1: {"name":"pre-infusion","duration":7, "pump_start":100, "pump_end":100, "max_mass":3},
@@ -429,7 +434,7 @@ defult_shot_profile = {
     }
 }
 
-defult_steam_profile = {
+default_steam_profile = {
     "preheat":{"setpoint":100, "exit_temp_range":[95, 105]},
     "stages":{
     1: {"name":"preheat","duration":15, "pump_start":0, "pump_end":0, "max_mass":100},
@@ -438,6 +443,6 @@ defult_steam_profile = {
 }
 
 my_pico = pico_espresso(default_shot_profile, default_steam_profile, 1000)
-my_pico.run()
+my_pico.run(False)
 my_pico.myheater=None
 my_pico.mypump=None
