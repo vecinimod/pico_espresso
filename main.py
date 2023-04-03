@@ -1,6 +1,6 @@
 import time
 from json import dumps as jdump
-from machine import Pin, Timer, I2C
+from machine import Pin, Timer, I2C, ADC
 from ssd1306 import SSD1306_I2C
 from max6675 import MAX6675
 from picozero import Button
@@ -30,6 +30,20 @@ def callhx2():
 # print(callhx2())
 # time.sleep_ms(3000)
 # print(callhx2())
+
+class pressure:
+    def __init__(self, adcpin=1):
+        self.adc=ADC(1)
+    
+    def read(self):
+        self.volts = self.adc.read_u16() * 3.3 / 65535 #volts
+        self.psi = (self.volts - .344)/(3.094-.344)*200
+        self.bar = self.psi / 14.5038
+
+    def get_bar(self):
+        self.read()
+        return(self.bar)
+
 class flowmeter:
     def __init__(self, pinin=3):
         self.pin_IN = Pin(pinin, Pin.IN, pull=Pin.PULL_DOWN )
@@ -56,8 +70,6 @@ class flowmeter:
             self.last_time = this_time
             self.last_count = self.count
         self.flow = flow
-
-myflow=flowmeter()
 
 # pin_IN = Pin(3, Pin.IN, Pin.PULL_DOWN )
 # def update_flow(pinn):
@@ -241,11 +253,12 @@ async def data(request, ws):
         temp = await get_temp()
  
         weight = callhx2()
+        myflow.compute_flow()
         data_str = jdump({"time":my_espresso.mode_elapsed_time/1000,"temperature":temp,
                           "output":my_espresso.myssr.output, "setpoint":my_espresso.mypid.setpoint,
                           "weight":weight, "mode":my_espresso.mode,"mode_change":my_espresso.flag_ui_mode_change,
                           "pump_output":my_espresso.mypump.output,
-                          "flow":myflow.flow})
+                          "flow":myflow.flow, "pressure":mypressure.get_bar()})
         my_espresso.flag_ui_mode_change = False
         await ws.send(data_str)
 
@@ -298,14 +311,14 @@ class pump:
         self.update_shot_pump_output(timenow, self.mass)
         self.psm.set_output(self.output)
 #         if(self.stage<=len(self.profile) and timenow%1000==0):
-        if(timenow%1000==0):
-            myflow.compute_flow()
-            if(self.stage<=len(self.profile)):
-                print("time", timenow/1000,"stage",self.profile[self.stage]["name"],
-                      "output", self.output, "mass", self.mass, "flowct", myflow.count,
-                      "flow", myflow.flow)
-        else:
-            return
+#         if(timenow%1000==0):
+#             myflow.compute_flow()
+#             if(self.stage<=len(self.profile)):
+#                 print("time", timenow/1000,"stage",self.profile[self.stage]["name"],
+#                       "output", self.output, "mass", self.mass, "flowct", myflow.count,
+#                       "flow", myflow.flow)
+#         else:
+#             return
     def reset(self):
         self.psm.set_output(0)
         self.stage=0
@@ -527,13 +540,15 @@ shot_profile = {
     1: {"name":"pre-infusion","duration":7, "pump_start":100, "pump_end":100, "max_mass":3},
     2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
     3: {"name":"ramp","duration":4, "pump_start":35, "pump_end":75, "max_mass":100},
-    4: {"name":"pour","duration":60, "pump_start":65, "pump_end":0, "max_mass":45}
+    4: {"name":"pour","duration":60, "pump_start":25, "pump_end":10, "max_mass":45}
             }
 
 steam_profile = {
     1: {"name":"preheat","duration":20, "pump_start":0, "pump_end":0, "max_mass":100},
     2: {"name":"steam","duration":250, "pump_start":2, "pump_end":2, "max_mass":100}
             }
+myflow=flowmeter()
+mypressure = pressure()
 
 my_espresso = espresso(myoled, shot_profile, steam_profile) #TODO add pump to espresso as argument
 my_espresso.call__async_main()
