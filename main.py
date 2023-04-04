@@ -139,6 +139,7 @@ class heater:
         self.mypin = Pin(mypin, Pin.OUT)
         self.oled=oled
         self.weight = 0
+        self.output = 0
         
     def set_temp(self, temp):
         self.mypid.setpoint = temp
@@ -288,6 +289,54 @@ class mode_profile:
             self.output["stage_time_elapsed"] = self.elapsed_stage_time
             self.output["total_time_elapsed"] = time_now - self.start_first_stage_time
 
+#define app
+#https://www.donskytech.com/using-websocket-in-micropython-a-practical-example/
+#https://stackoverflow.com/questions/74758745/how-to-run-python-microdot-web-api-module-app-run-that-is-already-an-asyncio
+app = Microdot()
+Response.default_content_type = 'text/html'
+
+@app.route('/')
+async def index(request):
+    asyncio.sleep_ms(1)
+    print("index request")
+    return send_file('index.html')
+
+@app.route('/echo')
+@with_websocket
+async def echo(request, ws):
+    while True:
+        asyncio.sleep_ms(1)
+        data = await ws.receive()
+        print(data)
+        target = "Set Temp {target:.1f}"
+        #my_espresso.set_shot_temp(int(data))
+        target = target.format(target = my_pico.myheater.mypid.setpoint)
+        asyncio.sleep_ms(1)
+        await ws.send(target)
+        
+# @app.route('/mode')
+# @with_websocket
+# async def echo(request, ws):
+#     while True:
+#         asyncio.sleep_ms(100)
+#         data = await ws.receive()
+#         print(data)
+#         asyncio.sleep_ms(1)
+#         hx711.tare(3)
+#         if(my_espresso.mode == "shot"): #check machine mode has to be in shot mode
+#             my_espresso.ui_mode_change_request()
+#         else:
+#             print("Error gui asked for shot mode when not physically in shot mode, turn dial")
+        
+@app.route('/data')
+@with_websocket
+async def data(request, ws):    
+    while True:
+        await asyncio.sleep_ms(my_pico.sample_period)
+        pico_data = my_pico.serialize_data()
+        my_pico.flag_ui_mode_change = False
+        await ws.send(pico_data)
+
 class pico_espresso:
     def __init__(self, shot_profile, steam_profile, sample_period=1000):
 
@@ -300,6 +349,7 @@ class pico_espresso:
         self.mode = "sleep"
         self.last_mode = "sleep"
         self.mode_change = False
+        self.flag_ui_mode_change = False
         
         #store profile config
         self.shot_profile = shot_profile
@@ -322,33 +372,16 @@ class pico_espresso:
         
         #create switch callbacks to sense state
         self.steam_button=Button(9)
-        self.shot_button=Button(10)        
-        #self.setup_buttons()
-        #https://picozero.readthedocs.io/en/latest/recipes.html#buttons
+        self.shot_button=Button(10)
         
-        #set when pressesd and whenreleased for both steam and shot switches to call the check state
-        #if both buttons pressed -> steam, clear history
-        #if shot button pressed -> new shot, clear history
-        #if no buttons pressed -> sleep, do not clear history
-        #if steam button pressed -> preheat for shot, clear history
+        #create a loop object
+        self.loop = asyncio.get_event_loop()
         
     def update_sensors(self):
         self.cur_weight = self.myscale.get_weight()
         self.cur_pressure = self.mypressure.get_bar()
         self.cur_flow = self.myflowmeter.get_flow()
         self.cur_temp = self.mythermocouple.get_temp()
-
-    def setup_buttons(self):
-        self.steam_button.when_pressed = self.sense_mode
-        self.steam_button.when_released = self.sense_mode
-        self.shot_button.when_pressed = self.sense_mode
-        self.shot_button.when_released = self.sense_mode
-    
-    def desetup_buttons(self):
-        self.steam_button.when_pressed = None
-        self.steam_button.when_released = None
-        self.shot_button.when_pressed = None
-        self.shot_button.when_released = None
         
     def sense_mode(self):
         #self.desetup_buttons()
@@ -383,13 +416,30 @@ class pico_espresso:
         else:
             return False
         #set pins low at certain time
-        
-    def run(self, parent_loop):
+    
+    def serialize_data(self):
+        #get time, if in active profile use start time, if not set to 0
+        data_str = jdump({"time":self.mode_elapsed_time/1000,
+                          "temperature":self.cur_temp,
+                          "heater_output":self.myheater.output,
+                          "heater_setpoint":self.myheater.mypid.setpoint,
+                          "weight":self.cur_weight,
+                          "mode":self.mode,
+                          "mode_change":self.flag_ui_mode_change,
+                          "pump_output":self.mypump.output,
+                          "flow":self.cur_flow,
+                          "pressure":self.cur_pressure})
+        return data_str
+    
+    def run_hw(self, parent_loop):
+        time_now = time.ticks_ms()
         last_time = 0
+        self.mode_start_time = time_now
         while(not self.flag_to_shutdown):
             #update time
             time_now = time.ticks_ms()
             diff_time = time.ticks_diff(time_now, last_time)
+            self.mode_elapsed_time = time.ticks_diff(time_now, self.mode_start_time)
             #update sensor readings and output to oled
             if(diff_time > self.sample_period):
                 self.sense_mode()
@@ -409,6 +459,9 @@ class pico_espresso:
                     
             #based on self.mode (Set by switch callback) get and set profile stage, thermoblock setpoint, and pump output at update interval
             if(self.mode_change):
+                if not (self.last_mode=="shot" and self.mode=="sleep"):                    
+                    self.mode_start_time = time_now
+                
                 print("new mode", self.mode)
                 self.myscale.tare()
                 
@@ -419,7 +472,8 @@ class pico_espresso:
                 else:
                     self.active_profile = None
                     self.sleep()
-                
+
+                self.flag_ui_mode_change = True
                 self.mode_change = False
             
             #get updated profile stage output
@@ -432,12 +486,23 @@ class pico_espresso:
 
                 #pulse heater, pulse pump based on zc trigger so no call here
                 self.myheater.pulse(self.cur_temp)
+     
+            await asyncio.sleep_ms(1)
 
         #if exited loop set output to low just in case!
         self.sleep()
         
+    def call__async_main(self):
+        task1 = self.loop.create_task(self.run_hw(self.loop))
+        task2 = self.loop.create_task(self.start_web_server())
+        self.loop.run_forever()
+
+    async def start_web_server(self):
+        do_connect()
+        await app.start_server(port=5000, debug=True)
+        
 default_shot_profile = {
-    "preheat":{"setpoint":100, "exit_temp_range":[25, 105]},
+    "preheat":{"setpoint":100, "exit_temp_range":[95, 105]},
     "stages":{
         1: {"name":"pre-infusion","duration":7, "pump_start":100, "pump_end":100, "max_mass":3},
         2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
@@ -447,14 +512,31 @@ default_shot_profile = {
 }
 
 default_steam_profile = {
-    "preheat":{"setpoint":150, "exit_temp_range":[25, 105]},
+    "preheat":{"setpoint":150, "exit_temp_range":[125, 169]},
     "stages":{
-    1: {"name":"preheat","duration":15, "pump_start":0, "pump_end":0, "max_mass":100},
+    1: {"name":"preheat","duration":5, "pump_start":0, "pump_end":0, "max_mass":100},
     2: {"name":"steam","duration":250, "pump_start":2, "pump_end":2, "max_mass":100}
             }
 }
 
+secrets = secrets()
+SSID = secrets.SSID
+SSI_PASSWORD = secrets.SSI_PASSWORD
+
+def do_connect():
+    import network
+    sta_if = network.WLAN(network.STA_IF)
+    if not sta_if.isconnected():
+        print('connecting to network...')
+        sta_if.active(True)
+        sta_if.connect(SSID, SSI_PASSWORD)
+        while not sta_if.isconnected():
+            pass
+    print('Connected! Network config:', sta_if.ifconfig())
+
+#show that we're on
+led = machine.Pin("LED", machine.Pin.OUT)
+led.high()
+
 my_pico = pico_espresso(default_shot_profile, default_steam_profile, 1000)
-my_pico.run(False)
-my_pico.myheater=None
-my_pico.mypump=None
+my_pico.call__async_main()
