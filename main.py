@@ -20,15 +20,15 @@ class scale:
         pin_SCK = Pin(sckpin, Pin.OUT)
 
         self.hx711 = HX711(pin_SCK, pin_OUT)
-        self.hx711.tare(3)
-        self.hx711.set_time_constant(.95)
+        self.hx711.tare(11)
+        self.hx711.set_time_constant(.99)
 
     def get_weight(self):
         value = self.hx711.get_value()/741.263
         return(value)
     
     def tare(self):
-        self.hx711.tare(3)
+        self.hx711.tare(10)
             
 class pressure:
     def __init__(self, adcpin=1):
@@ -136,12 +136,12 @@ class heater:
         self.high = False
         self.last_read = 0
         self.end_fire = 0
-        self.mypin = mypin
+        self.mypin = Pin(mypin, Pin.OUT)
         self.oled=oled
         self.weight = 0
         
     def set_temp(self, temp):
-        my.pid.setpoint = temp
+        self.mypid.setpoint = temp
         
     def calc_pulse(self, temp):
         if(self.mypid.setpoint - temp > 5):
@@ -162,13 +162,12 @@ class heater:
         self.fire_every_pulses = self.maxpulsespersec / self.target_pulse
         self.fire_every_ms = self.pulsewidth * self.fire_every_pulses
             
-    async def pulse(self):
+    def pulse(self, temp):
         now = time.ticks_ms()
 
         if(self.last_read==0 or now - self.last_read > self.WindowSize):        #new measurement and target pulse
             self.mypin.low()
             self.last_read = now
-            self.get_temp()
             self.calc_pulse(temp)    
             
         if(self.target_pulse >= 1 and self.output < 100): #calling for output
@@ -190,15 +189,14 @@ class heater:
             self.mypin.high()
     
     def reset(self):
-        if(self.target_pulse>0):
-            self.target_pulse = 0
-            self.output = 0
-            self.last_read = 0
-            self.mypid.setpoint=0
-            self.mypin.low()
-            self.mypid.setpoint = 0
-            self.mypid.reset()
-            self.mypid.automode = False
+        self.target_pulse = 0
+        self.output = 0
+        self.last_read = 0
+        self.mypid.setpoint=0
+        self.mypin.low()
+        self.mypid.setpoint = 0
+        self.mypid.reset()
+        self.mypid.automode = False
 
 class pump:
     def __init__(self, psm_pin=12, zc_pin=13):
@@ -283,12 +281,12 @@ class mode_profile:
             if(self.done):
                 self.output["pump_setpoint"] = 0
                 self.output["heater_setpoint"] = 0
-                self.output["stage_time_elapsed"] = self.elapsed_stage_time
-                self.output["total_time_elapsed"] = time_now - self.start_first_stage_time
             else:
                 pump_setpoint = ((self.elapsed_stage_time) / self.current_stage["duration"]) * (self.current_stage["pump_end"] - self.current_stage["pump_start"]) + self.current_stage["pump_start"]
                 self.output["pump_setpoint"] = pump_setpoint
-            
+
+            self.output["stage_time_elapsed"] = self.elapsed_stage_time
+            self.output["total_time_elapsed"] = time_now - self.start_first_stage_time
 
 class pico_espresso:
     def __init__(self, shot_profile, steam_profile, sample_period=1000):
@@ -324,11 +322,8 @@ class pico_espresso:
         
         #create switch callbacks to sense state
         self.steam_button=Button(9)
-        self.shot_button=Button(10)
-        self.steam_button.when_pressed = self.sense_mode
-        self.steam_button.when_released = self.sense_mode
-        self.shot_button.when_pressed = self.sense_mode
-        self.shot_button.when_released = self.sense_mode
+        self.shot_button=Button(10)        
+        #self.setup_buttons()
         #https://picozero.readthedocs.io/en/latest/recipes.html#buttons
         
         #set when pressesd and whenreleased for both steam and shot switches to call the check state
@@ -342,8 +337,21 @@ class pico_espresso:
         self.cur_pressure = self.mypressure.get_bar()
         self.cur_flow = self.myflowmeter.get_flow()
         self.cur_temp = self.mythermocouple.get_temp()
+
+    def setup_buttons(self):
+        self.steam_button.when_pressed = self.sense_mode
+        self.steam_button.when_released = self.sense_mode
+        self.shot_button.when_pressed = self.sense_mode
+        self.shot_button.when_released = self.sense_mode
+    
+    def desetup_buttons(self):
+        self.steam_button.when_pressed = None
+        self.steam_button.when_released = None
+        self.shot_button.when_pressed = None
+        self.shot_button.when_released = None
         
     def sense_mode(self):
+        #self.desetup_buttons()
         if(self.shot_button.is_pressed and self.steam_button.is_pressed):
             mode = "steam"
         elif(self.shot_button.is_pressed or self.steam_button.is_pressed):
@@ -361,6 +369,8 @@ class pico_espresso:
         self.last_mode = self.mode
         self.mode = mode
         
+        #self.setup_buttons()
+        
     def sleep(self):
         self.myheater.reset()
         self.mypump.reset()
@@ -375,15 +385,15 @@ class pico_espresso:
         #set pins low at certain time
         
     def run(self, parent_loop):
-        time_now = 0
+        last_time = 0
         while(not self.flag_to_shutdown):
             #update time
-            last_time = time_now
             time_now = time.ticks_ms()
             diff_time = time.ticks_diff(time_now, last_time)
-            
             #update sensor readings and output to oled
             if(diff_time > self.sample_period):
+                self.sense_mode()
+                last_time = time_now
                 self.update_sensors()
 
                 #watchdog check condition
@@ -393,12 +403,13 @@ class pico_espresso:
                 
                 #print sensor output
                 print("temp", self.cur_temp, "flow", self.cur_flow, "pressure", self.cur_pressure, "weight", self.cur_weight)
-                if(self.active_profile is not None and not self.active_profile.output =={} ):
+                if(self.active_profile is not None and hasattr(self.active_profile, "current_stage")):
                     print("profile stage", self.active_profile.current_stage)
                     print("profile output", self.active_profile.output)
                     
             #based on self.mode (Set by switch callback) get and set profile stage, thermoblock setpoint, and pump output at update interval
             if(self.mode_change):
+                print("new mode", self.mode)
                 self.myscale.tare()
                 
                 if(self.mode == "shot"):
@@ -406,26 +417,27 @@ class pico_espresso:
                 elif(self.mode == "steam"):
                     self.active_profile = mode_profile(self.steam_profile)
                 else:
+                    self.active_profile = None
                     self.sleep()
                 
                 self.mode_change = False
             
             #get updated profile stage output
-            if(not self.mode=="sleep"):                
+            if(not self.mode=="sleep" and self.active_profile is not None):
                 #update outputs 4 times per sensor sample period 
-                if(diff_time > self.sample_period / 4):
+                if(diff_time > self.sample_period):
                     self.active_profile.update_stage(self.cur_weight, self.cur_temp, time_now)
                     self.myheater.set_temp(self.active_profile.output["heater_setpoint"])
                     self.mypump.set_output(self.active_profile.output["pump_setpoint"])
 
                 #pulse heater, pulse pump based on zc trigger so no call here
-                self.myheater.pulse()
-                                           
+                self.myheater.pulse(self.cur_temp)
+
         #if exited loop set output to low just in case!
         self.sleep()
         
 default_shot_profile = {
-    "preheat":{"setpoint":100, "exit_temp_range":[95, 105]},
+    "preheat":{"setpoint":100, "exit_temp_range":[25, 105]},
     "stages":{
         1: {"name":"pre-infusion","duration":7, "pump_start":100, "pump_end":100, "max_mass":3},
         2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
@@ -435,7 +447,7 @@ default_shot_profile = {
 }
 
 default_steam_profile = {
-    "preheat":{"setpoint":100, "exit_temp_range":[95, 105]},
+    "preheat":{"setpoint":150, "exit_temp_range":[25, 105]},
     "stages":{
     1: {"name":"preheat","duration":15, "pump_start":0, "pump_end":0, "max_mass":100},
     2: {"name":"steam","duration":250, "pump_start":2, "pump_end":2, "max_mass":100}
