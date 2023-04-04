@@ -5,14 +5,6 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
   </head>
   <body>
-    <div id="log"></div>
-    <br>
-    <form id="form">
-      <label for="text">Input Desired Shot Temp Incl Offset: </label>
-      <input type="text" id="text" autofocus>
-    </form>
-    <button id="pull_shot"> Pull Shot
-    </button>
     <form name="form_main">
   <div>
     <span id="hour">00</span>:<span id="minute">00</span>:<span id="second">00</span>:<span id="millisecond">000</span>
@@ -25,31 +17,33 @@
   <button type="button" name="reset">reset</button>
 </form>
     <script>
+    /*
       const log = (text, color) => {
         document.getElementById('log').innerHTML = `<span style="color: ${color}">${text}</span><br>`;
       };
-
+    */
       const socket = new WebSocket('ws://' + location.host + '/echo');
       socket.addEventListener('message', ev => {
-        log('<<< ' + ev.data, 'blue');
+        console.log('<<< ' + ev.data, 'blue');
       });
       socket.addEventListener('close', ev => {
-        log('<<< closed');
+        console.log('<<< closed');
       });
-      document.getElementById('form').onsubmit = ev => {
+      /*document.getElementById('form').onsubmit = ev => {
         ev.preventDefault();
         const textField = document.getElementById('text');
         log('>>> ' + textField.value, 'red');
         socket.send(textField.value);
         textField.value = '';
-      };
-      const mode_socket = new WebSocket('ws://' + location.host + '/mode');
+      };*/
+/*      const mode_socket = new WebSocket('ws://' + location.host + '/mode');
 
       document.getElementById('pull_shot').onclick = ev => {
         console.log("click")
         ev.preventDefault();
         mode_socket.send({"mode":"shot"});
       };
+*/
       const data_socket = new WebSocket('ws://' + location.host + '/data');
       data_socket.addEventListener('message', ev => {
         //update_last google datapoint
@@ -94,10 +88,10 @@
           vAxis: {
             scaleType: 'log',
             viewWindow: {
-                min: 1,
+                min: .1,
                 max: 330
             },
-            ticks: [1,5,10,15,20,25,30,34, 100, 150, 300] // display labels every 25
+            ticks: [.1,5,10,15,20,25,30,34, 100, 150, 300] // display labels every 25
 }
         };
 
@@ -110,8 +104,8 @@
     </script>
     <script type="text/javascript">
         window_espresso_data = function(start_time, esp_data){
-        keys = ['time', 'temperature', 'output', 'setpoint', 'weight',
-            'pump_output','flow']
+        keys = ['time', 'temperature', 'heater_output', 'heater_setpoint', 'weight',
+            'pump_output','flow','pressure']
         var this_data = esp_data.map(function(a) {
             return keys.map(function(key) {
             return a[key];
@@ -133,7 +127,8 @@
               "weight": 0,
               "state": "sleep",
               "pump_output":0,
-              "flow":0
+              "flow":0,
+              "pressure":0
           }]
        old_espresso_data=[]
       f_espresso_data = window_espresso_data(-1, espresso_data)
