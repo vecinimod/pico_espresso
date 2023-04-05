@@ -237,7 +237,6 @@ class pump:
         
 class mode_profile:
     def __init__(self, profile):
-        self.stage = 0
         self.time_start_stage=0
         self.set_profile(profile)
         self.preheating=True
