@@ -237,6 +237,7 @@ class pump:
         
 class mode_profile:
     def __init__(self, profile):
+        self.stage = 0
         self.time_start_stage=0
         self.set_profile(profile)
         self.preheating=True
@@ -501,12 +502,12 @@ class pico_espresso:
         await app.start_server(port=5000, debug=True)
         
 default_shot_profile = {
-    "preheat":{"setpoint":100, "exit_temp_range":[95, 105]},
+    "preheat":{"setpoint":100, "exit_temp_range":[95, 155]},
     "stages":{
         1: {"name":"pre-infusion","duration":7, "pump_start":100, "pump_end":100, "max_mass":3},
         2: {"name":"wait","duration":25, "pump_start":0, "pump_end":0, "max_mass":100},
-        3: {"name":"ramp","duration":4, "pump_start":35, "pump_end":75, "max_mass":100},
-        4: {"name":"pour","duration":60, "pump_start":25, "pump_end":10, "max_mass":45}
+        3: {"name":"ramp","duration":5, "pump_start":35, "pump_end":75, "max_mass":100},
+        4: {"name":"pour","duration":60, "pump_start":25, "pump_end":10, "max_mass":40}
     }
 }
 
@@ -514,7 +515,7 @@ default_steam_profile = {
     "preheat":{"setpoint":150, "exit_temp_range":[125, 169]},
     "stages":{
     1: {"name":"preheat","duration":5, "pump_start":0, "pump_end":0, "max_mass":100},
-    2: {"name":"steam","duration":250, "pump_start":2, "pump_end":2, "max_mass":100}
+    2: {"name":"steam","duration":250, "pump_start":5, "pump_end":5, "max_mass":100}
             }
 }
 
@@ -539,3 +540,4 @@ led.high()
 
 my_pico = pico_espresso(default_shot_profile, default_steam_profile, 1000)
 my_pico.call__async_main()
+
